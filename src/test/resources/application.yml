@@ -1,0 +1,23 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:gateway_admin;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+
+opensabre:
+  gateway-admin:
+    nacos:
+      server-url: http://localhost:8848
+    prometheus:
+      server-url: http://localhost:9090
+
+jasypt:
+  encryptor:
+    password: gateway-admin-test

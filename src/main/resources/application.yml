@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:${DATASOURCE_DBTYPE:mysql}://${DATASOURCE_HOST:localhost}:${DATASOURCE_PORT:3306}/os_base_gateway_admin?characterEncoding=UTF-8&useUnicode=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DATASOURCE_USERNAME:root}
+    password: ${DATASOURCE_PASSWORD:root123}
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 20
+
+opensabre:
+  gateway-admin:
+    # 切流前保持关闭，GET 可用于并行校验，所有写接口会被拒绝。
+    configuration-write-enabled: ${GATEWAY_CONFIGURATION_WRITE_ENABLED:false}
+    nacos:
+      server-url: http://${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}
+      namespace: ${REGISTER_NAMESPACE:}
+      group: ${GATEWAY_CONFIG_GROUP:DEFAULT_GROUP}
+      gateway-data-id: ${GATEWAY_CONFIG_DATA_ID:base-gateway.yml}
+    prometheus:
+      server-url: ${PROMETHEUS_URL:http://localhost:9090}
+  rest:
+    swagger:
+      version: v0.0.1
+      title: OpenSabre Gateway Admin API
+      description: OpenSabre gateway control plane API
+      licenseUrl: https://github.com/opensabre/base-gateway-admin
+      licenseName: Apache 2.0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  level:
+    io.github.opensabre.gateway.admin: debug
+
+mybatis-plus:
+  global-config:
+    db-config:
+      table-prefix: base_gateway_admin_

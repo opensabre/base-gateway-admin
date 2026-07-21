@@ -1,0 +1,5 @@
+server:
+  port: ${SERVER_PORT:8030}
+spring:
+  application:
+    name: base-gateway-admin
