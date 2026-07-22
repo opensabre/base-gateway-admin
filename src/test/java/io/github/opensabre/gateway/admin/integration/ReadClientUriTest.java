@@ -22,6 +22,8 @@ class ReadClientUriTest {
                 .isEqualTo("http://nacos:8848/nacos/v1/ns/service/list?pageNo=1&pageSize=100&groupName=GATEWAY+GROUP&namespaceId=dev+space");
         assertThat(client.gatewayConfigUri().toString())
                 .isEqualTo("http://nacos:8848/nacos/v1/cs/configs?dataId=base+gateway.yml&group=GATEWAY+GROUP&tenant=dev+space");
+        assertThat(client.instanceListUri("base sysadmin").toString())
+                .isEqualTo("http://nacos:8848/nacos/v1/ns/instance/list?serviceName=base+sysadmin&groupName=GATEWAY+GROUP&namespaceId=dev+space&healthyOnly=false");
     }
 
     @Test

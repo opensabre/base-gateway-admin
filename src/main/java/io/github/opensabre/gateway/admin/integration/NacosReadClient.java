@@ -39,6 +39,14 @@ public class NacosReadClient {
         return get(serviceListUri(page, pageSize), "查询 Nacos 服务列表");
     }
 
+    /** 查询指定服务的全部实例，包含健康和集群信息。 */
+    public String listInstances(String serviceName) {
+        if (serviceName == null || serviceName.isBlank()) {
+            throw new IllegalArgumentException("服务名不能为空");
+        }
+        return get(instanceListUri(serviceName), "查询 Nacos 服务实例");
+    }
+
     /** 查询当前网关运行配置，返回 Nacos 原始 YAML。 */
     public String getGatewayConfig() {
         return get(gatewayConfigUri(), "读取网关配置");
@@ -54,6 +62,13 @@ public class NacosReadClient {
         return uri("/nacos/v1/cs/configs?dataId=" + encode(properties.getGatewayDataId())
                 + "&group=" + encode(properties.getGroup())
                 + "&tenant=" + encode(properties.getNamespace()));
+    }
+
+    URI instanceListUri(String serviceName) {
+        return uri("/nacos/v1/ns/instance/list?serviceName=" + encode(serviceName)
+                + "&groupName=" + encode(properties.getGroup())
+                + "&namespaceId=" + encode(properties.getNamespace())
+                + "&healthyOnly=false");
     }
 
     private String get(URI uri, String operation) {
