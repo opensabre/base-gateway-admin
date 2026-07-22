@@ -10,7 +10,7 @@ OpenSabre 独立网关控制面。当前已迁入原 `base-sysadmin` 的路由�
 2. 配置 MySQL、Nacos 和 Prometheus 环境变量。
 3. 运行 `mvn spring-boot:run`。
 
-默认端口为 `8030`，健康检查为 `/actuator/health`，能力说明为 `/gateway-admin/info`。
+默认端口为 `8030`，服务内部健康检查为 `/actuator/health`、能力说明为 `/info`；经 `gateway-web` 暴露的能力说明地址为 `/gateway-admin/info`。
 
 ## 路由控制面切换
 

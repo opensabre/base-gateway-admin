@@ -14,7 +14,7 @@ import java.util.Map;
  */
 @Tag(name = "网关控制面")
 @RestController
-@RequestMapping("/gateway-admin")
+@RequestMapping("/info")
 public class GatewayAdminInfoController {
 
     private final GatewayIntegrationProperties properties;
@@ -24,7 +24,7 @@ public class GatewayAdminInfoController {
     }
 
     /** 返回当前迭代已经启用的控制面能力。 */
-    @GetMapping("/info")
+    @GetMapping
     @Operation(summary = "查询网关控制面能力")
     public Map<String, Object> info() {
         return Map.of(
