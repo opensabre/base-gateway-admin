@@ -1,6 +1,6 @@
 services:
   base-gateway-admin:
-    image: ${BASE_GATEWAY_ADMIN_IMAGE:-ccr.ccs.tencentyun.com/opensabre/base-gateway-admin:master}
+    image: ${BASE_GATEWAY_ADMIN_IMAGE:-ccr.ccs.tencentyun.com/opensabre/base-gateway-admin:latest}
     container_name: base-gateway-admin
     restart: unless-stopped
     ports:
