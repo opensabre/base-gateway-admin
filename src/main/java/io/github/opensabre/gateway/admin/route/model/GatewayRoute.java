@@ -2,6 +2,8 @@ package io.github.opensabre.gateway.admin.route.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Nacos 中定义的 Spring Cloud Gateway 显式路由。
@@ -13,6 +15,7 @@ public class GatewayRoute {
     private int order;
     private List<GatewayRouteDefinition> predicates = new ArrayList<>();
     private List<GatewayRouteDefinition> filters = new ArrayList<>();
+    private Map<String, Object> metadata = new LinkedHashMap<>();
 
     public String getId() {
         return id;
@@ -52,5 +55,13 @@ public class GatewayRoute {
 
     public void setFilters(List<GatewayRouteDefinition> filters) {
         this.filters = filters;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
     }
 }

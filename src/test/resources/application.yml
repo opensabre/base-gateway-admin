@@ -21,3 +21,13 @@ opensabre:
 jasypt:
   encryptor:
     password: gateway-admin-test
+
+# 上下文测试使用 JetCache 自带内存远程缓存，避免依赖外部 Redis。
+jetcache:
+  remote:
+    default:
+      type: mock
+    longTime:
+      type: mock
+    shortTime:
+      type: mock

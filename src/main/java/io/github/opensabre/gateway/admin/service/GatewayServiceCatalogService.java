@@ -40,6 +40,15 @@ public class GatewayServiceCatalogService {
         }
     }
 
+    /** 查询单个服务及其实例，供内部 OpenAPI 发现使用。 */
+    public GatewayServiceSummary getService(String serviceName) {
+        try {
+            return parseService(serviceName, nacosReadClient.listInstances(serviceName));
+        } catch (Exception exception) {
+            throw new IllegalStateException("解析 Nacos 服务实例失败：" + serviceName, exception);
+        }
+    }
+
     GatewayServiceSummary parseService(String serviceName, String response) throws Exception {
         JsonNode hosts = objectMapper.readTree(response).path("hosts");
         List<GatewayServiceInstance> instances = new ArrayList<>();
