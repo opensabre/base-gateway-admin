@@ -1,5 +1,7 @@
 package io.github.opensabre.gateway.admin.route.service.impl;
 
+import com.alibaba.cloud.nacos.NacosConfigManager;
+import com.alibaba.nacos.api.config.ConfigService;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
 import io.github.opensabre.gateway.admin.route.model.GatewayOauth2Client;
@@ -10,8 +12,32 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 class GatewayRouteConfigServiceTest {
+
+    @Test
+    void shouldUseStarterNacosClientForCasPublication() throws Exception {
+        String yaml = "spring:\n  cloud:\n    gateway:\n      routes: []\n";
+        NacosConfigManager manager = mock(NacosConfigManager.class);
+        ConfigService configService = mock(ConfigService.class);
+        when(manager.getConfigService()).thenReturn(configService);
+        when(configService.getConfig("base-gateway.yml", "DEFAULT_GROUP", 10_000L)).thenReturn(yaml);
+        when(configService.publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                anyString(), anyString(), eq("yaml"))).thenReturn(true);
+        GatewayRouteConfigService service = new GatewayRouteConfigService(
+                manager, "base-gateway.yml", "DEFAULT_GROUP");
+        String baseVersion = service.getCurrentConfig().getVersion();
+
+        service.publishManaged(baseVersion, "release-1", List.of(), Map.of());
+
+        verify(configService).publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                anyString(), eq(baseVersion), eq("yaml"));
+    }
 
     @Test
     void shouldParseShortFormGatewayDefinitions() {
@@ -56,12 +82,17 @@ class GatewayRouteConfigServiceTest {
                       routes: []
                 """;
         GatewayRoute route = route("base-organization", "lb://base-organization", "Path", "pattern", "/api/org/**");
+        route.setMetadata(Map.of("connect-timeout", 500, "response-timeout", 2000));
 
         String updated = GatewayRouteConfigService.replaceRoutes(yaml, List.of(route));
 
         assertThat(updated).contains("management:", "discovery:", "enabled: true");
         assertThat(GatewayRouteConfigService.parseRoutes(updated)).singleElement()
-                .extracting(GatewayRoute::getId).isEqualTo("base-organization");
+                .satisfies(parsed -> {
+                    assertThat(parsed.getId()).isEqualTo("base-organization");
+                    assertThat(parsed.getMetadata()).containsEntry("connect-timeout", 500)
+                            .containsEntry("response-timeout", 2000);
+                });
     }
 
     @Test
@@ -159,6 +190,62 @@ class GatewayRouteConfigServiceTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> GatewayRouteConfigService.validateOauth2Clients(List.of(client)))
                 .withMessageContaining("回调地址");
+    }
+
+    @Test
+    void shouldReplaceOnlyManagedCircuitBreakerInstances() {
+        String yaml = """
+                spring:
+                  cloud:
+                    gateway:
+                      routes: []
+                resilience4j:
+                  circuitbreaker:
+                    instances:
+                      manually-maintained:
+                        failureRateThreshold: 20
+                      route-api-old:
+                        failureRateThreshold: 10
+                """;
+
+        String updated = GatewayRouteConfigService.replaceManagedCircuitBreakers(yaml, Map.of(
+                "route-api-new", Map.of("failureRateThreshold", 50)));
+
+        assertThat(updated).contains("manually-maintained:", "route-api-new:", "failureRateThreshold: 50")
+                .doesNotContain("route-api-old:");
+    }
+
+    @Test
+    void shouldWriteReleaseRevisionWithoutRemovingOtherGatewayProperties() {
+        String yaml = """
+                spring:
+                  cloud:
+                    gateway:
+                      routes: []
+                opensabre:
+                  gateway:
+                    permission:
+                      enabled: true
+                """;
+
+        String updated = GatewayRouteConfigService.replaceGatewayRevision(yaml, "release-42");
+
+        assertThat(updated).contains("permission:", "enabled: true", "revision: release-42");
+    }
+
+    @Test
+    void shouldCompileApiAccessRulesFromManagedRouteMetadata() {
+        String yaml = "spring:\n  cloud:\n    gateway:\n      routes: []\n";
+        GatewayRoute route = route("api-100", "lb://orders", "Method", "method", "GET");
+        route.setPredicates(List.of(
+                definition("Method", Map.of("method", "GET")),
+                definition("Path", Map.of("pattern", "/orders/{id}"))));
+        route.setMetadata(Map.of("opensabre-auth-mode", "RESOURCE_REQUIRED"));
+
+        String updated = GatewayRouteConfigService.replaceApiAccessRules(yaml, List.of(route));
+
+        assertThat(updated).contains("route-id: api-100", "method: GET",
+                "path: '/orders/{id}'", "mode: RESOURCE_REQUIRED");
     }
 
     private GatewayOauth2Client oauth2Client(String redirectUri) {

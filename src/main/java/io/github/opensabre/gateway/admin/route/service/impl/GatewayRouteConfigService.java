@@ -1,5 +1,8 @@
 package io.github.opensabre.gateway.admin.route.service.impl;
 
+import com.alibaba.cloud.nacos.NacosConfigManager;
+import com.alibaba.nacos.api.config.ConfigService;
+import com.alibaba.nacos.api.exception.NacosException;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteConfig;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteChange;
@@ -7,6 +10,7 @@ import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
 import io.github.opensabre.gateway.admin.route.model.GatewayDefaultFilterChange;
 import io.github.opensabre.gateway.admin.route.model.GatewayOauth2Client;
 import io.github.opensabre.gateway.admin.route.model.GatewayOauth2ClientChange;
+import io.github.opensabre.gateway.admin.route.model.GatewayManagedPublishResult;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,16 +18,9 @@ import org.jasypt.encryption.StringEncryptor;
 import jakarta.annotation.Resource;
 import org.yaml.snakeyaml.Yaml;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -42,14 +39,15 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     private static final Set<String> SUPPORTED_PREDICATES = Set.of(
             "Path", "Host", "Method", "Header", "Query", "RemoteAddr", "After", "Before", "Between");
     private static final Set<String> SUPPORTED_FILTERS = Set.of(
-            "StripPrefix", "PrefixPath", "RewritePath", "AddRequestHeader", "AddResponseHeader",
-            "RemoveRequestHeader", "RemoveResponseHeader", "Retry", "CircuitBreaker");
+            "StripPrefix", "PrefixPath", "RewritePath", "SetPath", "AddRequestHeader", "AddResponseHeader",
+            "RemoveRequestHeader", "RemoveResponseHeader", "Retry", "CircuitBreaker", "RequestRateLimiter");
     private static final Set<String> SUPPORTED_DEFAULT_FILTERS = Set.of(
             "TokenRelay", "AddRequestHeader", "AddResponseHeader", "RemoveRequestHeader", "RemoveResponseHeader",
             "Retry", "CircuitBreaker", "RequestRateLimiter");
 
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    private final String nacosServerUrl;
+    private static final long CONFIG_READ_TIMEOUT_MS = 10_000L;
+
+    private final ConfigService configService;
     private final String dataId;
     private final String group;
 
@@ -57,10 +55,10 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     private StringEncryptor stringEncryptor;
 
     public GatewayRouteConfigService(
-            @Value("${opensabre.gateway-admin.nacos.server-url:http://${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}}") String nacosServerUrl,
+            NacosConfigManager nacosConfigManager,
             @Value("${opensabre.gateway-admin.nacos.gateway-data-id:base-gateway.yml}") String dataId,
             @Value("${opensabre.gateway-admin.nacos.group:DEFAULT_GROUP}") String group) {
-        this.nacosServerUrl = nacosServerUrl.replaceAll("/$", "");
+        this.configService = nacosConfigManager.getConfigService();
         this.dataId = dataId;
         this.group = group;
     }
@@ -152,6 +150,65 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     }
 
     /**
+     * 控制面只拥有 api-/application- 路由和 route-api-/route-application- 熔断器实例；
+     * 其余配置作为非托管内容原样保留语义。
+     */
+    @Override
+    public GatewayManagedPublishResult publishManaged(String baseVersion, String revision,
+            List<GatewayRoute> managedRoutes,
+            Map<String, Map<String, Object>> circuitBreakerInstances) {
+        String content = readConfigContent();
+        String currentVersion = md5(content);
+        if (!currentVersion.equals(baseVersion)) {
+            throw new IllegalStateException("网关配置已被其他人修改，请刷新后重试");
+        }
+        managedRoutes.forEach(GatewayRouteConfigService::validateRoute);
+        List<GatewayRoute> merged = new ArrayList<>(parseRoutes(content).stream()
+                .filter(route -> !isManagedRoute(route.getId())).toList());
+        Set<String> ids = new java.util.HashSet<>();
+        merged.forEach(route -> ids.add(route.getId()));
+        for (GatewayRoute route : managedRoutes) {
+            if (!ids.add(route.getId())) {
+                throw new IllegalArgumentException("托管路由 ID 与现有路由冲突：" + route.getId());
+            }
+            merged.add(route);
+        }
+        String updated = replaceRoutes(content, merged);
+        updated = replaceManagedCircuitBreakers(updated, circuitBreakerInstances);
+        updated = replaceApiAccessRules(updated, managedRoutes);
+        updated = replaceGatewayRevision(updated, revision);
+        publishConfig(updated, currentVersion);
+        return new GatewayManagedPublishResult(currentVersion, md5(updated), updated);
+    }
+
+    /** 历史快照回滚仍通过当前 Nacos MD5 执行 CAS，不绕过并发保护。 */
+    @Override
+    public GatewayManagedPublishResult publishSnapshot(String baseVersion, String revision, String snapshotContent) {
+        if (snapshotContent == null || snapshotContent.isBlank()) {
+            throw new IllegalArgumentException("历史网关配置快照不能为空");
+        }
+        // 至少解析一次并确认快照包含合法的 YAML 根节点，避免发布损坏的历史数据。
+        Object loaded = new Yaml().load(snapshotContent);
+        if (!(loaded instanceof Map<?, ?>)) {
+            throw new IllegalArgumentException("历史网关配置快照不是有效的 YAML 对象");
+        }
+        String content = readConfigContent();
+        String currentVersion = md5(content);
+        if (!currentVersion.equals(baseVersion)) {
+            throw new IllegalStateException("网关配置已被其他人修改，请刷新后重试");
+        }
+        String updated = replaceGatewayRevision(snapshotContent, revision);
+        publishConfig(updated, currentVersion);
+        return new GatewayManagedPublishResult(currentVersion, md5(updated), updated);
+    }
+
+    @Override
+    public List<String> managedRouteIds(String content) {
+        return parseRoutes(content).stream().map(GatewayRoute::getId)
+                .filter(GatewayRouteConfigService::isManagedRoute).toList();
+    }
+
+    /**
      * 每次发布都从 Nacos 重新读取全文，并让 Nacos 以 casMd5 执行最终比较，避免覆盖其他管理员的变更。
      */
     private GatewayRouteConfig changeRoutes(String baseVersion, RouteMutator mutator) {
@@ -171,51 +228,25 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     }
 
     private String readConfigContent() {
-        String query = "dataId=" + URLEncoder.encode(dataId, StandardCharsets.UTF_8)
-                + "&group=" + URLEncoder.encode(group, StandardCharsets.UTF_8);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(nacosServerUrl + "/nacos/v1/cs/configs?" + query))
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build();
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) {
-                throw new IllegalStateException("读取网关配置失败，Nacos 返回 HTTP " + response.statusCode());
+            String content = configService.getConfig(dataId, group, CONFIG_READ_TIMEOUT_MS);
+            if (content == null || content.isBlank()) {
+                throw new IllegalStateException("网关配置不存在或为空：" + group + "/" + dataId);
             }
-            return response.body();
-        } catch (IOException exception) {
+            return content;
+        } catch (NacosException exception) {
             throw new IllegalStateException("无法连接配置中心读取网关路由", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("读取网关配置被中断", exception);
         }
     }
 
-    /** 使用 Nacos 配置发布接口的 casMd5 参数提交全文，false 表示版本已冲突。 */
+    /** 使用 OpenSabre starter 提供的 Nacos 客户端执行 MD5 CAS 全文发布。 */
     private void publishConfig(String content, String baseVersion) {
-        String body = "dataId=" + URLEncoder.encode(dataId, StandardCharsets.UTF_8)
-                + "&group=" + URLEncoder.encode(group, StandardCharsets.UTF_8)
-                + "&type=yaml"
-                + "&casMd5=" + URLEncoder.encode(baseVersion, StandardCharsets.UTF_8)
-                + "&content=" + URLEncoder.encode(content, StandardCharsets.UTF_8);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(nacosServerUrl + "/nacos/v1/cs/configs"))
-                .timeout(Duration.ofSeconds(10))
-                .header("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build();
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() != 200) {
-                throw new IllegalStateException("发布网关配置失败，Nacos 返回 HTTP " + response.statusCode());
-            }
-            if (!Boolean.parseBoolean(response.body())) {
+            if (!configService.publishConfigCas(dataId, group, content, baseVersion, "yaml")) {
                 throw new IllegalStateException("网关配置已被其他人修改，请刷新后重试");
             }
-        } catch (IOException exception) {
+        } catch (NacosException exception) {
             throw new IllegalStateException("无法连接配置中心发布网关路由", exception);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("发布网关配置被中断", exception);
         }
     }
 
@@ -243,6 +274,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             route.setOrder(numberValue(routeMap.get("order")));
             route.setPredicates(parseDefinitions(routeMap.get("predicates"), true));
             route.setFilters(parseDefinitions(routeMap.get("filters"), false));
+            route.setMetadata(objectMap(routeMap.get("metadata")));
             routes.add(route);
         }
         return routes;
@@ -350,6 +382,94 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         return new Yaml().dump(root);
     }
 
+    /** 替换控制面生成的熔断器实例，保留人工维护的其他 Resilience4j 实例。 */
+    @SuppressWarnings("unchecked")
+    static String replaceManagedCircuitBreakers(String content,
+            Map<String, Map<String, Object>> managedInstances) {
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) {
+            throw new IllegalStateException("网关配置不是有效的 YAML 对象");
+        }
+        Map<Object, Object> rootMap = (Map<Object, Object>) root;
+        Map<Object, Object> resilience4j = (Map<Object, Object>) rootMap.computeIfAbsent(
+                "resilience4j", key -> new LinkedHashMap<>());
+        Map<Object, Object> circuitBreaker = (Map<Object, Object>) resilience4j.computeIfAbsent(
+                "circuitbreaker", key -> new LinkedHashMap<>());
+        Map<Object, Object> instances = circuitBreaker.get("instances") instanceof Map<?, ?> values
+                ? new LinkedHashMap<>((Map<Object, Object>) values) : new LinkedHashMap<>();
+        instances.keySet().removeIf(key -> isManagedCircuitBreaker(String.valueOf(key)));
+        managedInstances.forEach((name, config) -> instances.put(name, new LinkedHashMap<>(config)));
+        circuitBreaker.put("instances", instances);
+        return new Yaml().dump(root);
+    }
+
+    /** 将本次发布 ID 写入配置，实例刷新后可报告实际加载的修订号。 */
+    @SuppressWarnings("unchecked")
+    static String replaceGatewayRevision(String content, String revision) {
+        if (revision == null || revision.isBlank()) {
+            throw new IllegalArgumentException("网关发布修订号不能为空");
+        }
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) {
+            throw new IllegalStateException("网关配置不是有效的 YAML 对象");
+        }
+        Map<Object, Object> rootMap = (Map<Object, Object>) root;
+        Map<Object, Object> opensabre = (Map<Object, Object>) rootMap.computeIfAbsent(
+                "opensabre", key -> new LinkedHashMap<>());
+        Map<Object, Object> gateway = (Map<Object, Object>) opensabre.computeIfAbsent(
+                "gateway", key -> new LinkedHashMap<>());
+        gateway.put("revision", revision);
+        return new Yaml().dump(root);
+    }
+
+    /** 根据 API Route 的 Method、Path 和控制面鉴权元数据生成动态访问规则。 */
+    @SuppressWarnings("unchecked")
+    static String replaceApiAccessRules(String content, List<GatewayRoute> managedRoutes) {
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) {
+            throw new IllegalStateException("网关配置不是有效的 YAML 对象");
+        }
+        List<Map<String, Object>> rules = new ArrayList<>();
+        for (GatewayRoute route : managedRoutes) {
+            if (route.getId() == null || !route.getId().startsWith("api-")) continue;
+            String mode = String.valueOf(route.getMetadata().getOrDefault("opensabre-auth-mode", ""));
+            String method = definitionArgument(route.getPredicates(), "Method", "method");
+            String path = definitionArgument(route.getPredicates(), "Path", "pattern");
+            if (mode.isBlank() || method.isBlank() || path.isBlank()) {
+                throw new IllegalArgumentException("API 托管路由缺少鉴权模式、Method 或 Path：" + route.getId());
+            }
+            Map<String, Object> rule = new LinkedHashMap<>();
+            rule.put("route-id", route.getId());
+            rule.put("method", method);
+            rule.put("path", path);
+            rule.put("mode", mode);
+            rules.add(rule);
+        }
+        Map<Object, Object> rootMap = (Map<Object, Object>) root;
+        Map<Object, Object> opensabre = (Map<Object, Object>) rootMap.computeIfAbsent(
+                "opensabre", key -> new LinkedHashMap<>());
+        Map<Object, Object> gateway = (Map<Object, Object>) opensabre.computeIfAbsent(
+                "gateway", key -> new LinkedHashMap<>());
+        Map<Object, Object> apiAccess = (Map<Object, Object>) gateway.computeIfAbsent(
+                "api-access", key -> new LinkedHashMap<>());
+        apiAccess.put("rules", rules);
+        return new Yaml().dump(root);
+    }
+
+    private static String definitionArgument(List<GatewayRouteDefinition> definitions, String name, String key) {
+        if (definitions == null) return "";
+        return definitions.stream().filter(definition -> name.equals(definition.getName())).findFirst()
+                .map(definition -> definition.getArgs().getOrDefault(key, "")).orElse("");
+    }
+
+    private static boolean isManagedRoute(String id) {
+        return id != null && (id.startsWith("api-") || id.startsWith("application-"));
+    }
+
+    private static boolean isManagedCircuitBreaker(String name) {
+        return name.startsWith("route-api-") || name.startsWith("route-application-");
+    }
+
     private static List<Map<String, Object>> toRouteMaps(List<GatewayRoute> routes) {
         List<Map<String, Object>> values = new ArrayList<>();
         for (GatewayRoute route : routes) {
@@ -359,6 +479,9 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             value.put("order", route.getOrder());
             value.put("predicates", toDefinitionMaps(route.getPredicates()));
             value.put("filters", toDefinitionMaps(route.getFilters()));
+            if (route.getMetadata() != null && !route.getMetadata().isEmpty()) {
+                value.put("metadata", new LinkedHashMap<>(route.getMetadata()));
+            }
             values.add(value);
         }
         return values;
@@ -542,6 +665,15 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         }
         Map<String, String> result = new LinkedHashMap<>();
         args.forEach((key, item) -> result.put(String.valueOf(key), stringValue(item)));
+        return result;
+    }
+
+    private static Map<String, Object> objectMap(Object value) {
+        if (!(value instanceof Map<?, ?> values)) {
+            return Map.of();
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        values.forEach((key, item) -> result.put(String.valueOf(key), item));
         return result;
     }
 
