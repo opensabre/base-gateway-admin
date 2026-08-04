@@ -13,6 +13,7 @@ opensabre:
     # 切流前保持关闭，GET 可用于并行校验，所有写接口会被拒绝。
     configuration-write-enabled: ${GATEWAY_CONFIGURATION_WRITE_ENABLED:false}
     nacos:
+      server-url: ${NACOS_SERVER_URL:http://${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}}
       group: ${GATEWAY_CONFIG_GROUP:DEFAULT_GROUP}
       gateway-data-id: ${GATEWAY_CONFIG_DATA_ID:base-gateway.yml}
     prometheus:
