@@ -1,6 +1,7 @@
 package io.github.opensabre.gateway.admin.api.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +10,7 @@ import io.github.opensabre.gateway.admin.api.model.ApiDiscoveryStatus;
 import io.github.opensabre.gateway.admin.api.model.ApiSourceType;
 import io.github.opensabre.gateway.admin.api.model.ApiSyncResult;
 import io.github.opensabre.gateway.admin.api.model.GatewayApi;
+import io.github.opensabre.gateway.admin.api.model.GatewayApiPage;
 import io.github.opensabre.gateway.admin.integration.OpenApiReadClient;
 import io.github.opensabre.gateway.admin.service.GatewayServiceCatalogService;
 import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
@@ -52,14 +54,17 @@ public class GatewayApiCatalogService {
     }
 
     /** 查询 API 资产，可按服务和发现状态筛选。 */
-    public List<GatewayApi> list(String serviceId, ApiDiscoveryStatus status) {
+    public GatewayApiPage list(String serviceId, ApiDiscoveryStatus status, long page, long pageSize) {
+        long safePage = Math.max(1, page);
+        long safePageSize = Math.min(200, Math.max(1, pageSize));
         LambdaQueryWrapper<GatewayApi> query = new LambdaQueryWrapper<GatewayApi>()
                 .eq(serviceId != null && !serviceId.isBlank(), GatewayApi::getServiceId, serviceId)
                 .eq(status != null, GatewayApi::getDiscoveryStatus, status)
                 .orderByAsc(GatewayApi::getServiceId)
                 .orderByAsc(GatewayApi::getUpstreamPath)
                 .orderByAsc(GatewayApi::getHttpMethod);
-        return mapper.selectList(query);
+        Page<GatewayApi> result = mapper.selectPage(new Page<>(safePage, safePageSize), query);
+        return new GatewayApiPage(result.getTotal(), result.getCurrent(), result.getSize(), result.getRecords());
     }
 
     /**
