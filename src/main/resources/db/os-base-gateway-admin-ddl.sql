@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_config_version (
     source_version VARCHAR(64),
     created_time DATETIME NOT NULL,
     created_by VARCHAR(100) NOT NULL,
+    updated_by VARCHAR(100) NOT NULL,
+    updated_time DATETIME NOT NULL,
     UNIQUE KEY uk_gateway_config_version (version)
 ) COMMENT='不可变网关配置版本';
 
@@ -28,11 +30,14 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_release (
     id BIGINT NOT NULL PRIMARY KEY,
     draft_id BIGINT,
     target_version VARCHAR(64) NOT NULL,
-    status VARCHAR(20) NOT NULL,
+    status VARCHAR(32) NOT NULL,
     failure_reason VARCHAR(1000),
     started_time DATETIME NOT NULL,
     completed_time DATETIME,
     created_by VARCHAR(100) NOT NULL,
+    created_time DATETIME NOT NULL,
+    updated_by VARCHAR(100) NOT NULL,
+    updated_time DATETIME NOT NULL,
     INDEX idx_gateway_release_status (status),
     INDEX idx_gateway_release_version (target_version)
 ) COMMENT='网关配置发布记录';
@@ -152,3 +157,67 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_route_probe (
     UNIQUE KEY uk_gateway_release_route_probe (release_id, instance_id),
     INDEX idx_gateway_route_probe_status (release_id, status)
 ) COMMENT='网关发布后路由装载探测';
+
+-- 兼容已初始化的 0.7.0/早期 0.7.1 数据库：发布实体继承 BasePo，必须具备完整审计字段。
+SET @column_exists = (SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'base_gateway_admin_config_version'
+                        AND COLUMN_NAME = 'updated_by');
+SET @ddl = IF(@column_exists = 0,
+              'ALTER TABLE base_gateway_admin_config_version ADD COLUMN updated_by VARCHAR(100) NOT NULL DEFAULT ''system''',
+              'SELECT 1');
+PREPARE gateway_admin_stmt FROM @ddl;
+EXECUTE gateway_admin_stmt;
+DEALLOCATE PREPARE gateway_admin_stmt;
+
+ALTER TABLE base_gateway_admin_release
+    MODIFY COLUMN status VARCHAR(32) NOT NULL;
+
+SET @column_exists = (SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'base_gateway_admin_config_version'
+                        AND COLUMN_NAME = 'updated_time');
+SET @ddl = IF(@column_exists = 0,
+              'ALTER TABLE base_gateway_admin_config_version ADD COLUMN updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+              'SELECT 1');
+PREPARE gateway_admin_stmt FROM @ddl;
+EXECUTE gateway_admin_stmt;
+DEALLOCATE PREPARE gateway_admin_stmt;
+
+SET @column_exists = (SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'base_gateway_admin_release'
+                        AND COLUMN_NAME = 'created_time');
+SET @ddl = IF(@column_exists = 0,
+              'ALTER TABLE base_gateway_admin_release ADD COLUMN created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+              'SELECT 1');
+PREPARE gateway_admin_stmt FROM @ddl;
+EXECUTE gateway_admin_stmt;
+DEALLOCATE PREPARE gateway_admin_stmt;
+
+SET @column_exists = (SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'base_gateway_admin_release'
+                        AND COLUMN_NAME = 'updated_by');
+SET @ddl = IF(@column_exists = 0,
+              'ALTER TABLE base_gateway_admin_release ADD COLUMN updated_by VARCHAR(100) NOT NULL DEFAULT ''system''',
+              'SELECT 1');
+PREPARE gateway_admin_stmt FROM @ddl;
+EXECUTE gateway_admin_stmt;
+DEALLOCATE PREPARE gateway_admin_stmt;
+
+SET @column_exists = (SELECT COUNT(*)
+                      FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME = 'base_gateway_admin_release'
+                        AND COLUMN_NAME = 'updated_time');
+SET @ddl = IF(@column_exists = 0,
+              'ALTER TABLE base_gateway_admin_release ADD COLUMN updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+              'SELECT 1');
+PREPARE gateway_admin_stmt FROM @ddl;
+EXECUTE gateway_admin_stmt;
+DEALLOCATE PREPARE gateway_admin_stmt;
