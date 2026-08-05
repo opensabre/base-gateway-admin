@@ -513,6 +513,11 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
 
     static void validateDefaultFilters(List<GatewayRouteDefinition> filters) {
         validateDefinitions(filters, SUPPORTED_DEFAULT_FILTERS, "全局过滤器", false);
+        boolean tokenRelayEnabled = filters.stream()
+                .anyMatch(filter -> "TokenRelay".equals(filter.getName()));
+        if (!tokenRelayEnabled) {
+            throw new IllegalArgumentException("全局过滤器必须保留 TokenRelay，否则 OAuth2 登录态无法转发到后端服务");
+        }
         for (GatewayRouteDefinition filter : filters) {
             if ("RequestRateLimiter".equals(filter.getName())) {
                 Map<String, String> args = filter.getArgs();
@@ -605,8 +610,11 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             if (definition == null || definition.getName() == null || !allowed.contains(definition.getName())) {
                 throw new IllegalArgumentException("不支持的" + type + "：" + (definition == null ? "" : definition.getName()));
             }
-            if (definition.getArgs() == null || definition.getArgs().isEmpty()
-                    || definition.getArgs().entrySet().stream().anyMatch(item -> isBlank(item.getKey()) || isBlank(item.getValue()))) {
+            boolean argumentlessTokenRelay = "TokenRelay".equals(definition.getName())
+                    && (definition.getArgs() == null || definition.getArgs().isEmpty());
+            if (!argumentlessTokenRelay && (definition.getArgs() == null || definition.getArgs().isEmpty()
+                    || definition.getArgs().entrySet().stream()
+                    .anyMatch(item -> isBlank(item.getKey()) || isBlank(item.getValue())))) {
                 throw new IllegalArgumentException(type + " " + definition.getName() + " 的参数不能为空");
             }
         }

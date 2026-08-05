@@ -132,6 +132,7 @@ class GatewayRouteConfigServiceTest {
 
     @Test
     void shouldRejectInvalidDefaultRateLimit() {
+        GatewayRouteDefinition tokenRelay = definition("TokenRelay", Map.of());
         GatewayRouteDefinition rateLimit = definition("RequestRateLimiter", Map.of(
                 "redis-rate-limiter.replenishRate", "10",
                 "redis-rate-limiter.burstCapacity", "5",
@@ -139,8 +140,18 @@ class GatewayRouteConfigServiceTest {
                 "key-resolver", "#{@remoteAddressKeyResolver}"));
 
         org.assertj.core.api.Assertions.assertThatIllegalArgumentException()
-                .isThrownBy(() -> GatewayRouteConfigService.validateDefaultFilters(List.of(rateLimit)))
+                .isThrownBy(() -> GatewayRouteConfigService.validateDefaultFilters(List.of(tokenRelay, rateLimit)))
                 .withMessageContaining("突发容量不能小于补充速率");
+    }
+
+    @Test
+    void shouldRejectRemovingTokenRelayFromDefaultFilters() {
+        GatewayRouteDefinition responseHeader = definition(
+                "AddResponseHeader", Map.of("name", "X-Trace", "value", "enabled"));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> GatewayRouteConfigService.validateDefaultFilters(List.of(responseHeader)))
+                .withMessageContaining("必须保留 TokenRelay");
     }
 
     @Test
