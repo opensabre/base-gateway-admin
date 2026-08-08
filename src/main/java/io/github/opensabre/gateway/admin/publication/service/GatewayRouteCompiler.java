@@ -8,6 +8,9 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRou
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -21,6 +24,13 @@ import java.util.Set;
 /** 将 API 与应用级发布语义编译为 Spring Cloud Gateway Route。 */
 @Component
 public class GatewayRouteCompiler {
+
+    private static final TypeReference<List<GatewayRouteDefinition>> DEFINITIONS = new TypeReference<>() { };
+    private final ObjectMapper objectMapper;
+
+    public GatewayRouteCompiler(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     /** 编译候选路由；调用方负责只传入本次候选发布集合。 */
     public List<GatewayRoute> compile(List<ApiPublicationCandidate> apis,
@@ -58,6 +68,12 @@ public class GatewayRouteCompiler {
         route.setMetadata(Map.of("opensabre-auth-mode", publication.getAuthMode().name()));
         route.setPredicates(List.of(definition("Method", "method", api.getHttpMethod()),
                 definition("Path", "pattern", publication.getExternalPath())));
+        List<GatewayRouteDefinition> configuredFilters = readDefinitions(publication.getFiltersJson());
+        if (!configuredFilters.isEmpty()) {
+            configuredFilters.forEach(this::validateDefinition);
+            route.setFilters(configuredFilters);
+            return route;
+        }
         String targetPath = publication.getUpstreamPath() == null || publication.getUpstreamPath().isBlank()
                 ? api.getUpstreamPath() : publication.getUpstreamPath();
         if (!targetPath.equals(publication.getExternalPath())) {
@@ -67,7 +83,15 @@ public class GatewayRouteCompiler {
     }
 
     private GatewayRoute compileApplication(GatewayApplicationRoute declaration, int order) {
-        GatewayRoute route = baseRoute("application-" + declaration.getId(), declaration.getTargetUri(), order);
+        int routeOrder = declaration.getRouteOrder() == null ? order : declaration.getRouteOrder();
+        GatewayRoute route = baseRoute("application-" + declaration.getId(), declaration.getTargetUri(), routeOrder);
+        List<GatewayRouteDefinition> configuredPredicates = readDefinitions(declaration.getPredicatesJson());
+        List<GatewayRouteDefinition> configuredFilters = readDefinitions(declaration.getFiltersJson());
+        if (!configuredPredicates.isEmpty()) {
+            route.setPredicates(configuredPredicates);
+            route.setFilters(configuredFilters);
+            return route;
+        }
         List<GatewayRouteDefinition> predicates = new ArrayList<>();
         if (declaration.getHttpMethod() != null && !declaration.getHttpMethod().isBlank()) {
             predicates.add(definition("Method", "method", declaration.getHttpMethod().toUpperCase(Locale.ROOT)));
@@ -87,6 +111,17 @@ public class GatewayRouteCompiler {
         return route;
     }
 
+    private List<GatewayRouteDefinition> readDefinitions(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, DEFINITIONS);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("应用路由断言或过滤器配置无法解析", exception);
+        }
+    }
+
     private void validateApi(ApiPublicationCandidate candidate, Set<String> matchKeys) {
         GatewayApi api = candidate.api();
         GatewayApiPublication publication = candidate.publication();
@@ -97,6 +132,7 @@ public class GatewayRouteCompiler {
             throw new IllegalArgumentException("MISSING API 不能发布：" + api.getId());
         }
         validatePath(publication.getExternalPath(), false);
+        readDefinitions(publication.getFiltersJson()).forEach(this::validateDefinition);
         if (publication.getAuthMode() == AuthMode.RESOURCE_REQUIRED
                 && (publication.getResourceId() == null || publication.getResourceId().isBlank())) {
             throw new IllegalArgumentException("RESOURCE_REQUIRED API 必须关联资源");
@@ -105,15 +141,36 @@ public class GatewayRouteCompiler {
     }
 
     private void validateApplication(GatewayApplicationRoute route, Set<String> matchKeys) {
-        validatePath(route.getExternalPath(), true);
+        List<GatewayRouteDefinition> configuredPredicates = readDefinitions(route.getPredicatesJson());
+        String path = configuredPredicates.stream()
+                .filter(definition -> "Path".equals(definition.getName()))
+                .map(definition -> definition.getArgs().getOrDefault("pattern", definition.getArgs().get("value")))
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse(route.getExternalPath());
+        if (!configuredPredicates.isEmpty() && (path == null || path.isBlank())) {
+            throw new IllegalArgumentException("应用路由至少需要一个 Path 断言");
+        }
+        validatePath(path, true);
+        configuredPredicates.forEach(this::validateDefinition);
+        readDefinitions(route.getFiltersJson()).forEach(this::validateDefinition);
         if (route.getTargetUri() == null || !route.getTargetUri().matches("^(lb|https?)://.+")) {
             throw new IllegalArgumentException("应用路由目标 URI 仅支持 lb/http/https");
         }
-        RiskLevel expected = classifyApplicationRisk(route.getExternalPath(), route.getHttpMethod());
+        RiskLevel expected = classifyApplicationRisk(path, route.getHttpMethod());
         if (route.getRiskLevel() != expected) {
             throw new IllegalArgumentException("应用路由风险等级应为 " + expected);
         }
-        addMatch(matchKeys, route.getHttpMethod(), route.getExternalPath());
+        addMatch(matchKeys, route.getHttpMethod(), path);
+    }
+
+    private void validateDefinition(GatewayRouteDefinition definition) {
+        if (definition == null || definition.getName() == null || definition.getName().isBlank()) {
+            throw new IllegalArgumentException("路由断言和过滤器名称不能为空");
+        }
+        if (definition.getArgs() == null) {
+            definition.setArgs(Map.of());
+        }
     }
 
     private void validatePath(String path, boolean wildcardAllowed) {
