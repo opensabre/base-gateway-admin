@@ -3,12 +3,12 @@ package io.github.opensabre.gateway.admin.integration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 网关控制面只读集成配置；写入能力在发布中心迭代前保持关闭。
+ * 网关控制面集成配置。
  */
 @ConfigurationProperties(prefix = "opensabre.gateway-admin")
 public class GatewayIntegrationProperties {
 
-    private boolean configurationWriteEnabled;
+    private boolean configurationWriteEnabled = true;
     private final Nacos nacos = new Nacos();
     private final Prometheus prometheus = new Prometheus();
 

@@ -18,7 +18,7 @@ services:
       DATASOURCE_USERNAME: ${DATASOURCE_USERNAME:-opensabre}
       DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD:-opensabre_change_me}
       JASYPT_ENCRYPTOR_PASSWORD: ${JASYPT_ENCRYPTOR_PASSWORD:?JASYPT_ENCRYPTOR_PASSWORD is required}
-      GATEWAY_CONFIGURATION_WRITE_ENABLED: "false"
+      GATEWAY_CONFIGURATION_WRITE_ENABLED: ${GATEWAY_CONFIGURATION_WRITE_ENABLED:-true}
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--DJM.LOG.PATH=/app/logs -Dcsp.sentinel.log.dir=/app/logs/csp}
     volumes:
       - ./config/bootstrap.yml:/app/bootstrap.yml:ro

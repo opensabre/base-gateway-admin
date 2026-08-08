@@ -12,14 +12,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class GatewayRouteControllerTest {
 
     @Test
-    void shouldRejectWritesBeforeControlPlaneCutover() {
+    void shouldRejectWritesWhenEmergencyWriteFreezeIsEnabled() {
         IGatewayRouteConfigService service = mock(IGatewayRouteConfigService.class);
         GatewayIntegrationProperties properties = new GatewayIntegrationProperties();
+        properties.setConfigurationWriteEnabled(false);
         GatewayRouteController controller = new GatewayRouteController(service, properties);
 
         assertThatIllegalStateException()
                 .isThrownBy(() -> controller.create(new GatewayRouteChange()))
-                .withMessageContaining("尚未切换");
+                .withMessageContaining("管理员停用");
         verifyNoInteractions(service);
     }
 }

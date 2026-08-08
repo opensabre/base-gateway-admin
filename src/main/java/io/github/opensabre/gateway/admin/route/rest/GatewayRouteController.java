@@ -93,10 +93,10 @@ public class GatewayRouteController {
         return gatewayRouteConfigService.updateOauth2Clients(change);
     }
 
-    /** 迁移验证阶段禁止新控制面写入 Nacos，避免与 base-sysadmin 双写。 */
+    /** 紧急停写开关，避免故障期间继续修改 Nacos 中的运行时配置。 */
     private void requireWriteEnabled() {
         if (!gatewayIntegrationProperties.isConfigurationWriteEnabled()) {
-            throw new IllegalStateException("网关配置写入尚未切换到 base-gateway-admin");
+            throw new IllegalStateException("网关配置写入已被管理员停用");
         }
     }
 }

@@ -10,8 +10,8 @@ spring:
 
 opensabre:
   gateway-admin:
-    # 切流前保持关闭，GET 可用于并行校验，所有写接口会被拒绝。
-    configuration-write-enabled: ${GATEWAY_CONFIGURATION_WRITE_ENABLED:false}
+    # 迁移完成后由本服务唯一写入网关配置；紧急情况下可显式设为 false 停写。
+    configuration-write-enabled: ${GATEWAY_CONFIGURATION_WRITE_ENABLED:true}
     nacos:
       server-url: ${NACOS_SERVER_URL:http://${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}}
       group: ${GATEWAY_CONFIG_GROUP:DEFAULT_GROUP}
