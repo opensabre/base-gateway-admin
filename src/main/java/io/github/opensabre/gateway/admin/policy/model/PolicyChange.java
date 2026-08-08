@@ -11,5 +11,6 @@ public record PolicyChange(
         @Valid RateLimitPolicyConfig rateLimit,
         @Valid TimeoutPolicyConfig timeout,
         @Valid CircuitBreakerPolicyConfig circuitBreaker,
+        @Valid AccessControlPolicyConfig accessControl,
         Integer lockVersion) {
 }

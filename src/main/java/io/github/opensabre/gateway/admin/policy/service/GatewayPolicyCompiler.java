@@ -1,5 +1,6 @@
 package io.github.opensabre.gateway.admin.policy.service;
 
+import io.github.opensabre.gateway.admin.policy.model.AccessControlPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.CircuitBreakerPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.PolicyMode;
@@ -36,9 +37,20 @@ public class GatewayPolicyCompiler {
         compileTimeout(unique.get(PolicyType.TIMEOUT), metadata);
         compileCircuitBreaker(route.getId(), unique.get(PolicyType.CIRCUIT_BREAKER),
                 filters, circuitBreakerInstances);
+        compileAccessControl(unique.get(PolicyType.ACCESS_CONTROL), filters);
         route.setFilters(List.copyOf(filters));
         route.setMetadata(Map.copyOf(metadata));
         return new PolicyCompilation(route, Map.copyOf(circuitBreakerInstances));
+    }
+
+    private void compileAccessControl(EffectivePolicy policy, List<GatewayRouteDefinition> filters) {
+        if (!enabled(policy)) return;
+        AccessControlPolicyConfig config = requireConfig(policy, AccessControlPolicyConfig.class);
+        Map<String, String> args = new LinkedHashMap<>();
+        args.put("mode", config.accessMode().name());
+        args.put("cidrs", config.entries().stream().map(AccessControlPolicyConfig.Entry::cidr)
+                .map(String::trim).distinct().collect(java.util.stream.Collectors.joining(",")));
+        filters.add(definition("OpenSabreIpAccessControl", args));
     }
 
     private void compileRateLimit(EffectivePolicy policy, List<GatewayRouteDefinition> filters) {

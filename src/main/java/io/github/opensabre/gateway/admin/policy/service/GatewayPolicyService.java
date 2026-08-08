@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.policy.dao.GatewayPolicyMapper;
+import io.github.opensabre.gateway.admin.policy.model.AccessControlPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.CircuitBreakerPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.GatewayPolicy;
@@ -146,20 +147,23 @@ public class GatewayPolicyService {
             case RATE_LIMIT -> change.rateLimit();
             case TIMEOUT -> change.timeout();
             case CIRCUIT_BREAKER -> change.circuitBreaker();
+            case ACCESS_CONTROL -> change.accessControl();
         };
     }
 
     private void ensureOnlySelectedConfig(PolicyType policyType, PolicyChange change) {
         int configured = (change.rateLimit() == null ? 0 : 1)
                 + (change.timeout() == null ? 0 : 1)
-                + (change.circuitBreaker() == null ? 0 : 1);
+                + (change.circuitBreaker() == null ? 0 : 1)
+                + (change.accessControl() == null ? 0 : 1);
         if (configured != 1 || selectedConfig(policyType, change) == null) {
             throw new IllegalArgumentException("只能提供与 policyType 对应的一项配置");
         }
     }
 
     private void ensureNoConfig(PolicyChange change) {
-        if (change.rateLimit() != null || change.timeout() != null || change.circuitBreaker() != null) {
+        if (change.rateLimit() != null || change.timeout() != null || change.circuitBreaker() != null
+                || change.accessControl() != null) {
             throw new IllegalArgumentException("INHERIT 或 DISABLED 模式不能携带策略参数");
         }
     }
@@ -169,6 +173,7 @@ public class GatewayPolicyService {
             case RATE_LIMIT -> RateLimitPolicyConfig.class;
             case TIMEOUT -> TimeoutPolicyConfig.class;
             case CIRCUIT_BREAKER -> CircuitBreakerPolicyConfig.class;
+            case ACCESS_CONTROL -> AccessControlPolicyConfig.class;
         };
         try {
             return objectMapper.readValue(configJson, type);

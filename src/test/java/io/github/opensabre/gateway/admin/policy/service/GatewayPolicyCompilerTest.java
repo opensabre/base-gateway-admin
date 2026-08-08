@@ -1,5 +1,6 @@
 package io.github.opensabre.gateway.admin.policy.service;
 
+import io.github.opensabre.gateway.admin.policy.model.AccessControlPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.CircuitBreakerPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.PolicyMode;
@@ -27,10 +28,15 @@ class GatewayPolicyCompilerTest {
                         new RateLimitPolicyConfig(RateLimitPolicyConfig.KeyType.IP, 10, 20, 1)),
                 effective(PolicyType.TIMEOUT, new TimeoutPolicyConfig(500, 2000)),
                 effective(PolicyType.CIRCUIT_BREAKER,
-                        new CircuitBreakerPolicyConfig(50, 60, 1000, 10, 5000, "forward:/fallback"))));
+                        new CircuitBreakerPolicyConfig(50, 60, 1000, 10, 5000, "forward:/fallback")),
+                effective(PolicyType.ACCESS_CONTROL, new AccessControlPolicyConfig(
+                        AccessControlPolicyConfig.AccessMode.DENYLIST,
+                        List.of(new AccessControlPolicyConfig.Entry("10.0.0.0/8", "internal"))))));
 
         assertThat(result.route().getFilters()).extracting("name")
-                .containsExactly("RequestRateLimiter", "CircuitBreaker");
+                .containsExactly("RequestRateLimiter", "CircuitBreaker", "OpenSabreIpAccessControl");
+        assertThat(result.route().getFilters().get(2).getArgs())
+                .containsEntry("mode", "DENYLIST").containsEntry("cidrs", "10.0.0.0/8");
         assertThat(result.route().getMetadata())
                 .containsEntry("connect-timeout", 500)
                 .containsEntry("response-timeout", 2000);
