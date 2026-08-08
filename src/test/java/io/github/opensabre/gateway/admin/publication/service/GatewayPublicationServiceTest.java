@@ -7,6 +7,7 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
@@ -26,7 +27,7 @@ class GatewayPublicationServiceTest {
     @BeforeEach
     void setUp() {
         service = new GatewayPublicationService(apiMapper, publicationMapper, applicationRouteMapper,
-                compiler, resourceValidator);
+                compiler, resourceValidator, new ObjectMapper());
     }
 
     @Test

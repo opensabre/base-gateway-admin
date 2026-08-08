@@ -1,6 +1,9 @@
 package io.github.opensabre.gateway.admin.publication.model;
 
 import jakarta.validation.constraints.NotBlank;
+import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
+
+import java.util.List;
 
 /** 应用级路由草稿变更。 */
 public record ApplicationRouteChange(
@@ -10,5 +13,8 @@ public record ApplicationRouteChange(
         @NotBlank String targetUri,
         String httpMethod,
         String rewritePath,
+        Integer routeOrder,
+        List<GatewayRouteDefinition> predicates,
+        List<GatewayRouteDefinition> filters,
         Integer lockVersion) {
 }

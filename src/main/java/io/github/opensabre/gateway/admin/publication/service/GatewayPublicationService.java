@@ -12,37 +12,59 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication
 import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
+import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /** 保存 API 发布和应用路由草稿；真正生效由发布中心统一执行。 */
 @Service
 public class GatewayPublicationService {
+
+    private static final TypeReference<List<GatewayRouteDefinition>> DEFINITIONS = new TypeReference<>() { };
 
     private final GatewayApiMapper apiMapper;
     private final GatewayApiPublicationMapper publicationMapper;
     private final GatewayApplicationRouteMapper applicationRouteMapper;
     private final GatewayRouteCompiler compiler;
     private final GatewayResourceBindingValidator resourceBindingValidator;
+    private final ObjectMapper objectMapper;
 
     public GatewayPublicationService(GatewayApiMapper apiMapper,
             GatewayApiPublicationMapper publicationMapper,
             GatewayApplicationRouteMapper applicationRouteMapper,
             GatewayRouteCompiler compiler,
-            GatewayResourceBindingValidator resourceBindingValidator) {
+            GatewayResourceBindingValidator resourceBindingValidator,
+            ObjectMapper objectMapper) {
         this.apiMapper = apiMapper;
         this.publicationMapper = publicationMapper;
         this.applicationRouteMapper = applicationRouteMapper;
         this.compiler = compiler;
         this.resourceBindingValidator = resourceBindingValidator;
+        this.objectMapper = objectMapper;
     }
 
     /** 查询 API 发布声明。 */
     public List<GatewayApiPublication> listApiPublications() {
-        return publicationMapper.selectList(new LambdaQueryWrapper<GatewayApiPublication>()
-                .orderByDesc(GatewayApiPublication::getUpdatedTime));
+        List<GatewayApiPublication> publications = publicationMapper.selectList(
+                new LambdaQueryWrapper<GatewayApiPublication>()
+                        .orderByDesc(GatewayApiPublication::getUpdatedTime));
+        if (publications.isEmpty()) {
+            return List.of();
+        }
+        Map<String, GatewayApi> apiById = apiMapper.selectBatchIds(
+                publications.stream().map(GatewayApiPublication::getApiId).toList()).stream()
+                .collect(Collectors.toMap(GatewayApi::getId, Function.identity()));
+        return publications.stream()
+                .map(publication -> hydrateApiDetails(publication, apiById.get(publication.getApiId())))
+                .toList();
     }
 
     /** 保存 API 发布草稿，不能借此接口直接改变线上状态。 */
@@ -61,6 +83,8 @@ public class GatewayPublicationService {
         draft.setApiId(apiId);
         draft.setExternalPath(change.externalPath());
         draft.setUpstreamPath(change.upstreamPath());
+        draft.setFiltersJson(writeDefinitions(change.filters()));
+        draft.setFilters(change.filters());
         draft.setAuthMode(change.authMode());
         draft.setResourceId(change.resourceId());
         draft.setStatus(PublicationStatus.DRAFT);
@@ -71,7 +95,7 @@ public class GatewayPublicationService {
                 api.getHttpMethod(), draft.getExternalPath());
         compiler.compile(List.of(new GatewayRouteCompiler.ApiPublicationCandidate(api, draft)), List.of());
         persist(publicationMapper, draft, current == null);
-        return draft;
+        return hydrateApiFilters(draft);
     }
 
     /** 标记 API 为待下线；正式发布前不会改变线上路由。 */
@@ -99,7 +123,9 @@ public class GatewayPublicationService {
     public List<GatewayApplicationRoute> listApplicationRoutes() {
         return applicationRouteMapper.selectList(new LambdaQueryWrapper<GatewayApplicationRoute>()
                 .orderByAsc(GatewayApplicationRoute::getServiceId)
-                .orderByAsc(GatewayApplicationRoute::getExternalPath));
+                .orderByAsc(GatewayApplicationRoute::getExternalPath)).stream()
+                .map(this::hydrateDefinitions)
+                .toList();
     }
 
     /** 新建应用级路由草稿。 */
@@ -126,7 +152,7 @@ public class GatewayPublicationService {
         if (applicationRouteMapper.updateById(draft) != 1) {
             throw new IllegalStateException("应用路由已被其他人修改，请刷新后重试");
         }
-        return applicationRouteMapper.selectById(id);
+        return hydrateDefinitions(applicationRouteMapper.selectById(id));
     }
 
     private void apply(GatewayApplicationRoute draft, ApplicationRouteChange change) {
@@ -136,9 +162,58 @@ public class GatewayPublicationService {
         draft.setTargetUri(change.targetUri());
         draft.setHttpMethod(change.httpMethod());
         draft.setRewritePath(change.rewritePath());
+        draft.setRouteOrder(change.routeOrder() == null ? 100 : change.routeOrder());
+        draft.setPredicatesJson(writeDefinitions(change.predicates()));
+        draft.setFiltersJson(writeDefinitions(change.filters()));
+        draft.setPredicates(change.predicates());
+        draft.setFilters(change.filters());
         draft.setStatus(PublicationStatus.DRAFT);
         draft.setRiskLevel(compiler.classifyApplicationRisk(change.externalPath(), change.httpMethod()));
         draft.setApprovalStatus(ApprovalStatus.NOT_REQUIRED);
+    }
+
+    private String writeDefinitions(List<GatewayRouteDefinition> definitions) {
+        if (definitions == null || definitions.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(definitions);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("路由断言或过滤器格式错误", exception);
+        }
+    }
+
+    private GatewayApplicationRoute hydrateDefinitions(GatewayApplicationRoute route) {
+        route.setPredicates(readDefinitions(route.getPredicatesJson()));
+        route.setFilters(readDefinitions(route.getFiltersJson()));
+        return route;
+    }
+
+    private GatewayApiPublication hydrateApiFilters(GatewayApiPublication publication) {
+        publication.setFilters(readDefinitions(publication.getFiltersJson()));
+        return publication;
+    }
+
+    private GatewayApiPublication hydrateApiDetails(GatewayApiPublication publication, GatewayApi api) {
+        hydrateApiFilters(publication);
+        if (api != null) {
+            publication.setServiceId(api.getServiceId());
+            publication.setOperationId(api.getOperationId());
+            publication.setHttpMethod(api.getHttpMethod());
+            publication.setApiSummary(api.getSummary());
+        }
+        return publication;
+    }
+
+    private List<GatewayRouteDefinition> readDefinitions(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, DEFINITIONS);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("已保存的路由断言或过滤器无法解析", exception);
+        }
     }
 
     private void requireVersion(GatewayApiPublication current, Integer version) {

@@ -7,6 +7,10 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication
 import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
+
+import java.util.Map;
 
 import java.util.List;
 
@@ -15,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GatewayRouteCompilerTest {
 
-    private final GatewayRouteCompiler compiler = new GatewayRouteCompiler();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final GatewayRouteCompiler compiler = new GatewayRouteCompiler(objectMapper);
 
     @Test
     void compilesApiBeforeApplicationRoute() {
@@ -62,6 +67,43 @@ class GatewayRouteCompilerTest {
                 .isEqualTo(RiskLevel.HIGH);
         assertThat(compiler.classifyApplicationRisk("/api/users/*", "GET"))
                 .isEqualTo(RiskLevel.MEDIUM);
+    }
+
+    @Test
+    void compilesConfiguredApplicationPredicatesAndFilters() throws Exception {
+        GatewayApplicationRoute application = application("app-1", "/api/org/**", null, RiskLevel.HIGH);
+        application.setRouteOrder(320);
+        application.setPredicatesJson(objectMapper.writeValueAsString(List.of(
+                definition("Host", Map.of("patterns", "admin.example.com")),
+                definition("Path", Map.of("pattern", "/api/org/**")))));
+        application.setFiltersJson(objectMapper.writeValueAsString(List.of(
+                definition("StripPrefix", Map.of("parts", "2")))));
+
+        var route = compiler.compile(List.of(), List.of(application)).get(0);
+
+        assertThat(route.getOrder()).isEqualTo(320);
+        assertThat(route.getPredicates()).extracting("name").containsExactly("Host", "Path");
+        assertThat(route.getFilters()).extracting("name").containsExactly("StripPrefix");
+    }
+
+    @Test
+    void configuredApiFiltersReplaceAutomaticPathConversion() throws Exception {
+        var candidate = candidate("api-1", "GET", "/users/{id}", "/open/users/{id}");
+        candidate.publication().setFiltersJson(objectMapper.writeValueAsString(List.of(
+                definition("SetPath", Map.of("template", "/users/{id}")),
+                definition("AddRequestHeader", Map.of("name", "X-Source", "value", "gateway")))));
+
+        var route = compiler.compile(List.of(candidate), List.of()).get(0);
+
+        assertThat(route.getFilters()).extracting("name")
+                .containsExactly("SetPath", "AddRequestHeader");
+    }
+
+    private GatewayRouteDefinition definition(String name, Map<String, String> args) {
+        GatewayRouteDefinition definition = new GatewayRouteDefinition();
+        definition.setName(name);
+        definition.setArgs(args);
+        return definition;
     }
 
     private GatewayRouteCompiler.ApiPublicationCandidate candidate(
