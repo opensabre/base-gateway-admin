@@ -84,6 +84,7 @@ API 资产存在不代表已经对外发布。
 - 限流 `RATE_LIMIT`
 - 超时 `TIMEOUT`
 - 熔断 `CIRCUIT_BREAKER`
+- IP 黑白名单 `ACCESS_CONTROL`
 
 每项策略均可分别配置在 `GLOBAL`、`APPLICATION`、`API` 作用域。
 
@@ -198,7 +199,7 @@ resolve(policyType, apiId, serviceId):
 ### 7.4 编译原则
 
 分层策略只存在于控制面。发布时先计算 Effective Policy，再为每条最终 Route
-生成唯一的一套限流、超时、熔断过滤器。
+生成唯一的一套限流、超时、熔断和 IP 访问控制过滤器。
 
 禁止把三级策略分别写入 `default-filters`、应用路由和 API 路由后依赖
 Spring Cloud Gateway 自行覆盖；过滤器会叠加执行，不具备本设计需要的继承语义。
@@ -232,6 +233,15 @@ Spring Cloud Gateway 自行覆盖；过滤器会叠加执行，不具备本设�
 - 可选 `fallbackUri`
 
 熔断器实例名必须由稳定路由 ID 派生，避免不同 API 意外共享状态。
+
+#### IP 黑白名单
+
+- 模式：`ALLOWLIST`（仅命中放行）或 `DENYLIST`（命中拒绝）
+- 条目：IPv4、IPv6 或 CIDR，可附带说明
+- 每项策略最多 20 条；启用时至少 1 条
+
+网关只在直接连接来源属于 `opensabre.gateway.client-ip.trusted-proxies` 时读取
+`X-Forwarded-For`，避免客户端伪造来源地址。白名单发布前必须加入实际管理入口与运维出口。
 
 ## 8. 鉴权边界
 

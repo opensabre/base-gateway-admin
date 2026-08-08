@@ -19,3 +19,9 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 3. 使用当前版本执行一次无语义变化的 CAS 发布，确认写入、审计和版本控制正常。
 4. 验证新增、修改、删除及网关运行时生效；验证后恢复原始配置。
 5. 如需紧急冻结配置写入，设置 `GATEWAY_CONFIGURATION_WRITE_ENABLED=false` 并重启本服务。
+
+## IP 黑白名单
+
+黑白名单复用分层策略和发布流程，在 `GLOBAL`、`APPLICATION`、`API` 作用域保存
+`ACCESS_CONTROL` 策略。保存只产生草稿；执行发布后，控制面将有效策略编译为
+`OpenSabreIpAccessControl` 路由过滤器并原子写入网关配置。

@@ -96,7 +96,8 @@ public class GatewayReleaseValidationService {
         List<EffectivePolicy> policies = List.of(
                 policyService.resolve(PolicyType.RATE_LIMIT, serviceId, apiId),
                 policyService.resolve(PolicyType.TIMEOUT, serviceId, apiId),
-                policyService.resolve(PolicyType.CIRCUIT_BREAKER, serviceId, apiId));
+                policyService.resolve(PolicyType.CIRCUIT_BREAKER, serviceId, apiId),
+                policyService.resolve(PolicyType.ACCESS_CONTROL, serviceId, apiId));
         GatewayPolicyCompiler.PolicyCompilation compiled = policyCompiler.apply(route, policies);
         compiled.circuitBreakerInstances().forEach((name, config) -> {
             if (circuitBreakers.putIfAbsent(name, config) != null) {
