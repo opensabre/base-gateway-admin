@@ -15,6 +15,7 @@ import io.github.opensabre.gateway.admin.publication.model.ReleaseValidationResu
 import io.github.opensabre.gateway.admin.publication.model.GatewayInstanceVerification;
 import io.github.opensabre.gateway.admin.publication.model.GatewayRouteProbeSummary;
 import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication;
+import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.GatewayReleaseItem;
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import io.github.opensabre.gateway.admin.route.model.GatewayManagedPublishResult;
@@ -107,6 +108,27 @@ class GatewayReleaseServiceTest {
         verify(releaseItemMapper).insert(item.capture());
         assertThat(item.getValue().getChangeType()).isEqualTo("OFFLINE");
         assertThat(item.getValue().getItemId()).isEqualTo("api-1");
+        assertThat(offline.getPublishedVersion()).isEqualTo("target-v2");
+    }
+
+    @Test
+    void shouldRecordAndFinalizePendingApplicationRouteOffline() {
+        GatewayApplicationRoute offline = new GatewayApplicationRoute();
+        offline.setId("route-1");
+        offline.setExternalPath("/orders/**");
+        offline.setStatus(PublicationStatus.OFFLINE);
+        when(applicationMapper.selectList(any())).thenReturn(List.of(offline), List.of(), List.of(offline));
+        when(applicationMapper.updateById(offline)).thenReturn(1);
+        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of(), NO_GLOBAL_RULE_CHANGES))
+                .thenReturn(new GatewayManagedPublishResult("base-v1", "target-v2", "spring: {}"));
+
+        service.publish("base-v1");
+
+        ArgumentCaptor<GatewayReleaseItem> item = ArgumentCaptor.forClass(GatewayReleaseItem.class);
+        verify(releaseItemMapper).insert(item.capture());
+        assertThat(item.getValue().getItemType()).isEqualTo("APPLICATION_ROUTE");
+        assertThat(item.getValue().getChangeType()).isEqualTo("OFFLINE");
+        assertThat(item.getValue().getItemId()).isEqualTo("route-1");
         assertThat(offline.getPublishedVersion()).isEqualTo("target-v2");
     }
 

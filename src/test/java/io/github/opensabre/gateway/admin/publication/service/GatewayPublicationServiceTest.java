@@ -4,6 +4,7 @@ import io.github.opensabre.gateway.admin.api.dao.GatewayApiMapper;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayApiPublicationMapper;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayApplicationRouteMapper;
 import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication;
+import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,29 @@ class GatewayPublicationServiceTest {
                 .withMessageContaining("只有已发布");
     }
 
+    @Test
+    void shouldCreateApplicationRouteOfflineDraftWithoutChangingRuntimeDirectly() {
+        GatewayApplicationRoute published = applicationRoute(PublicationStatus.PUBLISHED);
+        published.setPublishedVersion("version-1");
+        when(applicationRouteMapper.selectById("route-1")).thenReturn(published);
+        when(applicationRouteMapper.updateById(any())).thenReturn(1);
+
+        GatewayApplicationRoute result = service.offlineApplicationRoute("route-1", 2);
+
+        assertThat(result.getStatus()).isEqualTo(PublicationStatus.OFFLINE);
+        assertThat(result.getPublishedVersion()).isNull();
+    }
+
+    @Test
+    void shouldRejectApplicationRouteOfflineForUnpublishedDraft() {
+        when(applicationRouteMapper.selectById("route-1"))
+                .thenReturn(applicationRoute(PublicationStatus.DRAFT));
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> service.offlineApplicationRoute("route-1", 2))
+                .withMessageContaining("只有已发布");
+    }
+
     private GatewayApiPublication publication(PublicationStatus status) {
         GatewayApiPublication publication = new GatewayApiPublication();
         publication.setId("publication-1");
@@ -59,5 +83,13 @@ class GatewayPublicationServiceTest {
         publication.setStatus(status);
         publication.setLockVersion(3);
         return publication;
+    }
+
+    private GatewayApplicationRoute applicationRoute(PublicationStatus status) {
+        GatewayApplicationRoute route = new GatewayApplicationRoute();
+        route.setId("route-1");
+        route.setStatus(status);
+        route.setLockVersion(2);
+        return route;
     }
 }

@@ -238,6 +238,17 @@ public class GatewayReleaseService {
                 throw new IllegalStateException("更新应用路由发布状态失败：" + draft.getId());
             }
         }
+        List<GatewayApplicationRoute> pendingApplicationOffline = applicationRouteMapper.selectList(
+                new LambdaQueryWrapper<GatewayApplicationRoute>()
+                        .eq(GatewayApplicationRoute::getStatus, PublicationStatus.OFFLINE));
+        for (GatewayApplicationRoute offline : pendingApplicationOffline) {
+            if (offline.getPublishedVersion() == null) {
+                offline.setPublishedVersion(version);
+                if (applicationRouteMapper.updateById(offline) != 1) {
+                    throw new IllegalStateException("更新应用路由下线版本失败：" + offline.getId());
+                }
+            }
+        }
     }
 
     private void saveOfflineItems(String releaseId) {
@@ -255,6 +266,22 @@ public class GatewayReleaseService {
                     item.setSummary(value.getExternalPath() + " offline");
                     if (releaseItemMapper.insert(item) != 1) {
                         throw new IllegalStateException("保存 API 下线影响项失败：" + value.getApiId());
+                    }
+                });
+        List<GatewayApplicationRoute> offlineApplicationRoutes = applicationRouteMapper.selectList(
+                new LambdaQueryWrapper<GatewayApplicationRoute>()
+                        .eq(GatewayApplicationRoute::getStatus, PublicationStatus.OFFLINE));
+        offlineApplicationRoutes.stream()
+                .filter(value -> value.getPublishedVersion() == null)
+                .forEach(value -> {
+                    GatewayReleaseItem item = new GatewayReleaseItem();
+                    item.setReleaseId(releaseId);
+                    item.setItemType("APPLICATION_ROUTE");
+                    item.setItemId(value.getId());
+                    item.setChangeType("OFFLINE");
+                    item.setSummary(value.getExternalPath() + " offline");
+                    if (releaseItemMapper.insert(item) != 1) {
+                        throw new IllegalStateException("保存应用路由下线影响项失败：" + value.getId());
                     }
                 });
     }
