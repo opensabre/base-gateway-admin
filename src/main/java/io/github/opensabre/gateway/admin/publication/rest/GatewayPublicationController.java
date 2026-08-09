@@ -98,6 +98,16 @@ public class GatewayPublicationController {
         return service.updateApplicationDraft(id, change);
     }
 
+    /** 仅生成应用路由待下线声明，需通过发布中心正式生效。 */
+    @PostMapping("/application-routes/{id}/offline")
+    @Operation(summary = "将应用级路由标记为待下线")
+    @Audit(operationType = OperationType.UPDATE, description = "标记应用级路由待下线",
+            module = "GATEWAY_APPLICATION_ROUTE", response = true, key = "#id")
+    public GatewayApplicationRoute offlineApplicationRoute(@PathVariable String id,
+            @Valid @RequestBody OfflineRequest request) {
+        return service.offlineApplicationRoute(id, request.lockVersion());
+    }
+
     /** 解析三级策略并生成候选配置，但不写入 Nacos。 */
     @PostMapping("/releases/validate")
     @Operation(summary = "校验网关发布候选")

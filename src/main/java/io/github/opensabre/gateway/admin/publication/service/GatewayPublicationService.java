@@ -155,6 +155,25 @@ public class GatewayPublicationService {
         return hydrateDefinitions(applicationRouteMapper.selectById(id));
     }
 
+    /** 标记应用级路由为待下线；正式发布前不会改变线上路由。 */
+    @Transactional
+    public GatewayApplicationRoute offlineApplicationRoute(String id, Integer lockVersion) {
+        GatewayApplicationRoute route = applicationRouteMapper.selectById(id);
+        if (route == null) {
+            throw new IllegalArgumentException("应用路由不存在：" + id);
+        }
+        requireVersion(route, lockVersion);
+        if (route.getStatus() != PublicationStatus.PUBLISHED) {
+            throw new IllegalStateException("只有已发布的应用路由可以下线");
+        }
+        route.setStatus(PublicationStatus.OFFLINE);
+        route.setPublishedVersion(null);
+        if (applicationRouteMapper.updateById(route) != 1) {
+            throw new IllegalStateException("应用路由已被其他人修改，请刷新后重试");
+        }
+        return hydrateDefinitions(applicationRouteMapper.selectById(id));
+    }
+
     private void apply(GatewayApplicationRoute draft, ApplicationRouteChange change) {
         draft.setServiceId(change.serviceId());
         draft.setRouteName(change.routeName());
