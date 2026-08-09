@@ -1,6 +1,7 @@
 package io.github.opensabre.gateway.admin.publication.model;
 
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
+import io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation;
 
 import java.util.List;
 import java.util.Map;
@@ -11,5 +12,6 @@ public record ReleaseValidationResult(
         int apiRouteCount,
         int applicationRouteCount,
         List<GatewayRoute> managedRoutes,
-        Map<String, Map<String, Object>> circuitBreakerInstances) {
+        Map<String, Map<String, Object>> circuitBreakerInstances,
+        GlobalRuleCompilation globalRules) {
 }

@@ -21,6 +21,15 @@ import static org.mockito.ArgumentMatchers.eq;
 class GatewayRouteConfigServiceTest {
 
     @Test
+    void shouldAcceptCompiledIpAccessControlFilter() {
+        GatewayRoute route = route("managed-api", "lb://service", "Path", "pattern", "/api/**");
+        route.setFilters(List.of(definition("OpenSabreIpAccessControl",
+                Map.of("mode", "DENYLIST", "cidrs", "10.0.0.0/8"))));
+
+        GatewayRouteConfigService.validateRoute(route);
+    }
+
+    @Test
     void shouldUseStarterNacosClientForCasPublication() throws Exception {
         String yaml = "spring:\n  cloud:\n    gateway:\n      routes: []\n";
         NacosConfigManager manager = mock(NacosConfigManager.class);
@@ -33,7 +42,9 @@ class GatewayRouteConfigServiceTest {
                 manager, "base-gateway.yml", "DEFAULT_GROUP");
         String baseVersion = service.getCurrentConfig().getVersion();
 
-        service.publishManaged(baseVersion, "release-1", List.of(), Map.of());
+        service.publishManaged(baseVersion, "release-1", List.of(), Map.of(),
+                new io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation(
+                        false, List.of(), false, Map.of(), false));
 
         verify(configService).publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
                 anyString(), eq(baseVersion), eq("yaml"));
@@ -152,6 +163,22 @@ class GatewayRouteConfigServiceTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> GatewayRouteConfigService.validateDefaultFilters(List.of(responseHeader)))
                 .withMessageContaining("必须保留 TokenRelay");
+    }
+
+    @Test
+    void shouldReplaceAndDisableGlobalCorsWithoutChangingRoutes() {
+        String content = "spring:\n  cloud:\n    gateway:\n      routes:\n        - id: keep\n          uri: lb://keep\n";
+        String enabled = GatewayRouteConfigService.replaceGlobalCors(content,
+                Map.of("/**", Map.of("allowedOrigins", List.of("https://admin.example.com"),
+                        "allowedMethods", List.of("GET", "OPTIONS"))), true);
+
+        assertThat(enabled).contains("globalcors:").contains("https://admin.example.com")
+                .contains("id: keep");
+        assertThat(GatewayRouteConfigService.parseGlobalCorsConfigurations(enabled))
+                .containsKey("/**");
+        assertThat(GatewayRouteConfigService.parseGlobalCorsSimpleHandler(enabled)).isTrue();
+        assertThat(GatewayRouteConfigService.replaceGlobalCors(enabled, Map.of(), false))
+                .doesNotContain("globalcors:").contains("id: keep");
     }
 
     @Test

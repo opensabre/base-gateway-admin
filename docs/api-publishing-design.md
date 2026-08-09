@@ -85,8 +85,11 @@ API 资产存在不代表已经对外发布。
 - 超时 `TIMEOUT`
 - 熔断 `CIRCUIT_BREAKER`
 - IP 黑白名单 `ACCESS_CONTROL`
+- 全局默认过滤器 `DEFAULT_FILTERS`（仅全局，兼容旧 `SECURITY_HEADERS` 草稿）
+- 跨域规则 `CORS`（仅全局）
 
-每项策略均可分别配置在 `GLOBAL`、`APPLICATION`、`API` 作用域。
+限流、超时、熔断和 IP 黑白名单可分别配置在 `GLOBAL`、`APPLICATION`、`API`
+作用域；默认过滤器与跨域规则只允许 `GLOBAL`。
 
 ## 5. 总体架构
 
@@ -312,7 +315,7 @@ Spring Cloud Gateway 自行覆盖；过滤器会叠加执行，不具备本设�
 |---|---|
 | `scope_type` | GLOBAL/APPLICATION/API |
 | `scope_id` | 全局固定值、service_id 或 api_id |
-| `policy_type` | RATE_LIMIT/TIMEOUT/CIRCUIT_BREAKER |
+| `policy_type` | RATE_LIMIT/TIMEOUT/CIRCUIT_BREAKER/ACCESS_CONTROL/DEFAULT_FILTERS/CORS |
 | `mode` | INHERIT/ENABLED/DISABLED |
 | `config_json` | 类型化配置的持久化形式 |
 | `lock_version` | 乐观锁 |
@@ -320,6 +323,9 @@ Spring Cloud Gateway 自行覆盖；过滤器会叠加执行，不具备本设�
 唯一键：`scope_type + scope_id + policy_type`。
 
 服务层必须把 `config_json` 转换为按类型校验的 DTO，Controller 不接收任意 JSON。
+
+安全响应头和 CORS 仍复用该表，不新增平行配置表。`config_json` 使用 `TEXT`，以容纳
+CSP、来源列表和自定义 Header 等类型化配置。
 
 ### 9.5 复用发布表
 
@@ -372,6 +378,12 @@ Spring Cloud Gateway 自行覆盖；过滤器会叠加执行，不具备本设�
 - 熔断 fallback 形成循环。
 - API 资产处于 MISSING。
 - 当前 Nacos MD5 与草稿基线不一致。
+- 自定义 Header 包含受保护名称或换行注入字符。
+- CORS 来源、凭证通配、方法或缓存时间不合法。
+
+`DEFAULT_FILTERS` 草稿按顺序写入 `spring.cloud.gateway.default-filters`，且必须保留启用的
+唯一 `TokenRelay`；CORS 写入 `spring.cloud.gateway.globalcors`。没有草稿时不接管既有
+节点，管理端首次编辑时从当前运行配置完整导入。安全响应头作为过滤器快捷模板生成。
 
 ### 11.2 回滚
 
@@ -391,6 +403,9 @@ Nacos CAS 发布。回滚同样执行校验、实例确认和探测。
 │   ├── 全局
 │   ├── 应用
 │   └── API
+├── 全局规则
+│   ├── 默认过滤器（含安全响应头快捷模板）
+│   └── CORS
 └── 发布记录
 ```
 

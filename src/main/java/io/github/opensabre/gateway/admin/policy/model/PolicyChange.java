@@ -12,5 +12,8 @@ public record PolicyChange(
         @Valid TimeoutPolicyConfig timeout,
         @Valid CircuitBreakerPolicyConfig circuitBreaker,
         @Valid AccessControlPolicyConfig accessControl,
+        @Valid SecurityHeadersPolicyConfig securityHeaders,
+        @Valid DefaultFiltersPolicyConfig defaultFilters,
+        @Valid CorsPolicyConfig cors,
         Integer lockVersion) {
 }

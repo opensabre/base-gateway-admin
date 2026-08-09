@@ -67,7 +67,7 @@ class GatewayPolicyServiceTest {
 
     @Test
     void enabledPolicyRequiresMatchingTypedConfig() {
-        PolicyChange change = new PolicyChange(PolicyMode.ENABLED, null, null, null, null, null);
+        PolicyChange change = new PolicyChange(PolicyMode.ENABLED, null, null, null, null, null, null, null, null);
         assertThatThrownBy(() -> service.save(PolicyScopeType.GLOBAL, null, PolicyType.TIMEOUT, change))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("必须提供");
@@ -76,7 +76,7 @@ class GatewayPolicyServiceTest {
     @Test
     void disabledPolicyRejectsParameters() {
         PolicyChange change = new PolicyChange(PolicyMode.DISABLED, null,
-                new TimeoutPolicyConfig(100, 200), null, null, null);
+                new TimeoutPolicyConfig(100, 200), null, null, null, null, null, null);
         assertThatThrownBy(() -> service.save(PolicyScopeType.GLOBAL, null, PolicyType.TIMEOUT, change))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不能携带");

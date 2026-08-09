@@ -4,6 +4,7 @@ import com.alibaba.cloud.nacos.NacosConfigManager;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.exception.NacosException;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
+import io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteConfig;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteChange;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
@@ -40,7 +41,8 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             "Path", "Host", "Method", "Header", "Query", "RemoteAddr", "After", "Before", "Between");
     private static final Set<String> SUPPORTED_FILTERS = Set.of(
             "StripPrefix", "PrefixPath", "RewritePath", "SetPath", "AddRequestHeader", "AddResponseHeader",
-            "RemoveRequestHeader", "RemoveResponseHeader", "Retry", "CircuitBreaker", "RequestRateLimiter");
+            "RemoveRequestHeader", "RemoveResponseHeader", "Retry", "CircuitBreaker", "RequestRateLimiter",
+            "OpenSabreIpAccessControl");
     private static final Set<String> SUPPORTED_DEFAULT_FILTERS = Set.of(
             "TokenRelay", "AddRequestHeader", "AddResponseHeader", "RemoveRequestHeader", "RemoveResponseHeader",
             "Retry", "CircuitBreaker", "RequestRateLimiter");
@@ -71,6 +73,8 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         config.setRoutes(parseRoutes(content));
         config.setDefaultFilters(parseDefaultFilters(content));
         config.setOauth2Clients(maskSecrets(parseOauth2Clients(content)));
+        config.setGlobalCorsConfigurations(parseGlobalCorsConfigurations(content));
+        config.setCorsAddToSimpleUrlHandlerMapping(parseGlobalCorsSimpleHandler(content));
         return config;
     }
 
@@ -156,7 +160,8 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     @Override
     public GatewayManagedPublishResult publishManaged(String baseVersion, String revision,
             List<GatewayRoute> managedRoutes,
-            Map<String, Map<String, Object>> circuitBreakerInstances) {
+            Map<String, Map<String, Object>> circuitBreakerInstances,
+            GlobalRuleCompilation globalRules) {
         String content = readConfigContent();
         String currentVersion = md5(content);
         if (!currentVersion.equals(baseVersion)) {
@@ -175,6 +180,14 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         }
         String updated = replaceRoutes(content, merged);
         updated = replaceManagedCircuitBreakers(updated, circuitBreakerInstances);
+        if (globalRules.defaultFiltersChanged()) {
+            validateManagedDefaultFilters(globalRules.defaultFilters(), parseDefaultFilters(content));
+            updated = replaceDefaultFilters(updated, globalRules.defaultFilters());
+        }
+        if (globalRules.corsChanged()) {
+            updated = replaceGlobalCors(updated, globalRules.corsConfigurations(),
+                    globalRules.addToSimpleUrlHandlerMapping());
+        }
         updated = replaceApiAccessRules(updated, managedRoutes);
         updated = replaceGatewayRevision(updated, revision);
         publishConfig(updated, currentVersion);
@@ -382,6 +395,64 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         return new Yaml().dump(root);
     }
 
+    /** Replaces the managed global CORS node; an empty configuration explicitly disables global CORS. */
+    @SuppressWarnings("unchecked")
+    static String replaceGlobalCors(String content, Map<String, Map<String, Object>> configurations,
+            boolean addToSimpleUrlHandlerMapping) {
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) {
+            throw new IllegalStateException("网关配置不是有效的 YAML 对象");
+        }
+        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        if (!(gateway instanceof Map<?, ?> gatewayMap)) {
+            throw new IllegalStateException("网关配置缺少 spring.cloud.gateway 节点");
+        }
+        Map<Object, Object> mutableGateway = (Map<Object, Object>) gatewayMap;
+        if (configurations == null || configurations.isEmpty()) {
+            mutableGateway.remove("globalcors");
+            return new Yaml().dump(root);
+        }
+        Map<Object, Object> globalCors = new LinkedHashMap<>();
+        globalCors.put("add-to-simple-url-handler-mapping", addToSimpleUrlHandlerMapping);
+        Map<String, Object> runtimeConfigurations = new LinkedHashMap<>();
+        configurations.forEach((path, values) -> runtimeConfigurations.put("[" + path + "]",
+                new LinkedHashMap<>(values)));
+        globalCors.put("cors-configurations", runtimeConfigurations);
+        mutableGateway.put("globalcors", globalCors);
+        return new Yaml().dump(root);
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Map<String, Object>> parseGlobalCorsConfigurations(String content) {
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) return Map.of();
+        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        if (!(gateway instanceof Map<?, ?> gatewayMap)) return Map.of();
+        Object globalCors = gatewayMap.get("globalcors");
+        if (!(globalCors instanceof Map<?, ?> globalCorsMap)) return Map.of();
+        Object configurations = globalCorsMap.get("cors-configurations");
+        if (!(configurations instanceof Map<?, ?> configurationMap)) return Map.of();
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        configurationMap.forEach((path, values) -> {
+            if (path instanceof String pathValue && values instanceof Map<?, ?> valueMap) {
+                String normalized = pathValue.startsWith("[") && pathValue.endsWith("]")
+                        ? pathValue.substring(1, pathValue.length() - 1) : pathValue;
+                result.put(normalized, new LinkedHashMap<>((Map<String, Object>) valueMap));
+            }
+        });
+        return result;
+    }
+
+    static boolean parseGlobalCorsSimpleHandler(String content) {
+        Object loaded = new Yaml().load(content);
+        if (!(loaded instanceof Map<?, ?> root)) return false;
+        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        if (!(gateway instanceof Map<?, ?> gatewayMap)) return false;
+        Object globalCors = gatewayMap.get("globalcors");
+        if (!(globalCors instanceof Map<?, ?> globalCorsMap)) return false;
+        return Boolean.TRUE.equals(globalCorsMap.get("add-to-simple-url-handler-mapping"));
+    }
+
     /** 替换控制面生成的熔断器实例，保留人工维护的其他 Resilience4j 实例。 */
     @SuppressWarnings("unchecked")
     static String replaceManagedCircuitBreakers(String content,
@@ -527,6 +598,22 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
                 if (!"#{@defaultRedisRateLimiter}".equals(args.get("rate-limiter"))) throw new IllegalArgumentException("限流器必须使用 defaultRedisRateLimiter");
                 String keyResolver = args.get("key-resolver");
                 if (!Set.of("#{@remoteAddressKeyResolver}", "#{@apiKeyResolver}").contains(keyResolver)) throw new IllegalArgumentException("限流 Key Resolver 仅支持 IP 或请求路径");
+            }
+        }
+    }
+
+    private static void validateManagedDefaultFilters(List<GatewayRouteDefinition> filters,
+            List<GatewayRouteDefinition> currentFilters) {
+        List<GatewayRouteDefinition> supported = filters.stream()
+                .filter(filter -> SUPPORTED_DEFAULT_FILTERS.contains(filter.getName())).toList();
+        validateDefaultFilters(supported);
+        for (GatewayRouteDefinition filter : filters) {
+            if (SUPPORTED_DEFAULT_FILTERS.contains(filter.getName())) continue;
+            boolean unchangedExisting = currentFilters.stream().anyMatch(current ->
+                    java.util.Objects.equals(current.getName(), filter.getName())
+                            && java.util.Objects.equals(current.getArgs(), filter.getArgs()));
+            if (!unchangedExisting) {
+                throw new IllegalArgumentException("不支持修改或新增全局过滤器：" + filter.getName());
             }
         }
     }

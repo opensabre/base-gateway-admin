@@ -6,6 +6,7 @@ import io.github.opensabre.gateway.admin.route.model.GatewayDefaultFilterChange;
 import io.github.opensabre.gateway.admin.route.model.GatewayOauth2ClientChange;
 import io.github.opensabre.gateway.admin.route.model.GatewayManagedPublishResult;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
+import io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation;
 
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,7 @@ public interface IGatewayRouteConfigService {
 
     /** 原子替换控制面托管路由及其 Resilience4j 实例，保留其他配置。 */
     GatewayManagedPublishResult publishManaged(String baseVersion, String revision, List<GatewayRoute> managedRoutes,
-            Map<String, Map<String, Object>> circuitBreakerInstances);
+            Map<String, Map<String, Object>> circuitBreakerInstances, GlobalRuleCompilation globalRules);
 
     /** 使用当前版本 CAS 发布一个已保存的完整历史快照。 */
     GatewayManagedPublishResult publishSnapshot(String baseVersion, String revision, String snapshotContent);

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.policy.dao.GatewayPolicyMapper;
 import io.github.opensabre.gateway.admin.policy.model.AccessControlPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.CircuitBreakerPolicyConfig;
+import io.github.opensabre.gateway.admin.policy.model.CorsPolicyConfig;
+import io.github.opensabre.gateway.admin.policy.model.DefaultFiltersPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.GatewayPolicy;
 import io.github.opensabre.gateway.admin.policy.model.PolicyChange;
@@ -13,6 +15,7 @@ import io.github.opensabre.gateway.admin.policy.model.PolicyMode;
 import io.github.opensabre.gateway.admin.policy.model.PolicyScopeType;
 import io.github.opensabre.gateway.admin.policy.model.PolicyType;
 import io.github.opensabre.gateway.admin.policy.model.RateLimitPolicyConfig;
+import io.github.opensabre.gateway.admin.policy.model.SecurityHeadersPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.TimeoutPolicyConfig;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -54,6 +57,10 @@ public class GatewayPolicyService {
      */
     @Transactional
     public GatewayPolicy save(PolicyScopeType scopeType, String scopeId, PolicyType policyType, PolicyChange change) {
+        if (Set.of(PolicyType.SECURITY_HEADERS, PolicyType.DEFAULT_FILTERS, PolicyType.CORS).contains(policyType)
+                && scopeType != PolicyScopeType.GLOBAL) {
+            throw new IllegalArgumentException(policyType + " 当前仅支持 GLOBAL 作用域");
+        }
         String normalizedScopeId = normalizeScopeId(scopeType, scopeId);
         String configJson = serializeAndValidate(policyType, change);
         GatewayPolicy current = find(scopeType, normalizedScopeId, policyType);
@@ -148,6 +155,9 @@ public class GatewayPolicyService {
             case TIMEOUT -> change.timeout();
             case CIRCUIT_BREAKER -> change.circuitBreaker();
             case ACCESS_CONTROL -> change.accessControl();
+            case SECURITY_HEADERS -> change.securityHeaders();
+            case DEFAULT_FILTERS -> change.defaultFilters();
+            case CORS -> change.cors();
         };
     }
 
@@ -155,7 +165,10 @@ public class GatewayPolicyService {
         int configured = (change.rateLimit() == null ? 0 : 1)
                 + (change.timeout() == null ? 0 : 1)
                 + (change.circuitBreaker() == null ? 0 : 1)
-                + (change.accessControl() == null ? 0 : 1);
+                + (change.accessControl() == null ? 0 : 1)
+                + (change.securityHeaders() == null ? 0 : 1)
+                + (change.defaultFilters() == null ? 0 : 1)
+                + (change.cors() == null ? 0 : 1);
         if (configured != 1 || selectedConfig(policyType, change) == null) {
             throw new IllegalArgumentException("只能提供与 policyType 对应的一项配置");
         }
@@ -163,7 +176,8 @@ public class GatewayPolicyService {
 
     private void ensureNoConfig(PolicyChange change) {
         if (change.rateLimit() != null || change.timeout() != null || change.circuitBreaker() != null
-                || change.accessControl() != null) {
+                || change.accessControl() != null || change.securityHeaders() != null
+                || change.defaultFilters() != null || change.cors() != null) {
             throw new IllegalArgumentException("INHERIT 或 DISABLED 模式不能携带策略参数");
         }
     }
@@ -174,6 +188,9 @@ public class GatewayPolicyService {
             case TIMEOUT -> TimeoutPolicyConfig.class;
             case CIRCUIT_BREAKER -> CircuitBreakerPolicyConfig.class;
             case ACCESS_CONTROL -> AccessControlPolicyConfig.class;
+            case SECURITY_HEADERS -> SecurityHeadersPolicyConfig.class;
+            case DEFAULT_FILTERS -> DefaultFiltersPolicyConfig.class;
+            case CORS -> CorsPolicyConfig.class;
         };
         try {
             return objectMapper.readValue(configJson, type);

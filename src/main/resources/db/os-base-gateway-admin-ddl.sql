@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_policy (
     scope_id VARCHAR(100) NOT NULL,
     policy_type VARCHAR(30) NOT NULL,
     mode VARCHAR(20) NOT NULL,
-    config_json VARCHAR(4000),
+    config_json TEXT,
     lock_version INT NOT NULL DEFAULT 0,
     created_by VARCHAR(100) NOT NULL,
     created_time DATETIME NOT NULL,
