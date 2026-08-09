@@ -19,6 +19,7 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayReleaseItem;
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import io.github.opensabre.gateway.admin.route.model.GatewayManagedPublishResult;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
+import io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +36,9 @@ import static org.mockito.Mockito.when;
 
 /** 正式发布的成功、CAS 冲突和发布记录状态测试。 */
 class GatewayReleaseServiceTest {
+
+    private static final GlobalRuleCompilation NO_GLOBAL_RULE_CHANGES =
+            new GlobalRuleCompilation(false, List.of(), false, Map.of(), false);
 
     private final GatewayReleaseValidationService validationService = mock(GatewayReleaseValidationService.class);
     private final IGatewayRouteConfigService routeConfigService = mock(IGatewayRouteConfigService.class);
@@ -65,7 +69,8 @@ class GatewayReleaseServiceTest {
         when(versionMapper.insert(any())).thenReturn(1);
         when(releaseItemMapper.insert(any())).thenReturn(1);
         when(validationService.validate("base-v1"))
-                .thenReturn(new ReleaseValidationResult("base-v1", 1, 0, List.of(), Map.of()));
+                .thenReturn(new ReleaseValidationResult("base-v1", 1, 0, List.of(), Map.of(),
+                        NO_GLOBAL_RULE_CHANGES));
         when(verificationService.verify(any())).thenReturn(new GatewayInstanceVerification(1, 1, List.of()));
         when(routeConfigService.managedRouteIds(any())).thenReturn(List.of());
         when(routeProbeService.probe(any(), any())).thenReturn(new GatewayRouteProbeSummary(1, 1, List.of()));
@@ -73,7 +78,7 @@ class GatewayReleaseServiceTest {
 
     @Test
     void shouldPublishAndRecordImmutableVersion() {
-        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of()))
+        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of(), NO_GLOBAL_RULE_CHANGES))
                 .thenReturn(new GatewayManagedPublishResult("base-v1", "target-v2", "spring: {}"));
 
         GatewayReleaseResult result = service.publish("base-v1");
@@ -93,7 +98,7 @@ class GatewayReleaseServiceTest {
         offline.setStatus(PublicationStatus.OFFLINE);
         when(apiMapper.selectList(any())).thenReturn(List.of(offline), List.of(), List.of(offline));
         when(apiMapper.updateById(offline)).thenReturn(1);
-        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of()))
+        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of(), NO_GLOBAL_RULE_CHANGES))
                 .thenReturn(new GatewayManagedPublishResult("base-v1", "target-v2", "spring: {}"));
 
         service.publish("base-v1");
@@ -107,7 +112,7 @@ class GatewayReleaseServiceTest {
 
     @Test
     void shouldRecordFailedWhenCasPublishFails() {
-        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of()))
+        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of(), NO_GLOBAL_RULE_CHANGES))
                 .thenThrow(new IllegalStateException("网关配置已被其他人修改"));
 
         assertThatIllegalStateException().isThrownBy(() -> service.publish("base-v1"));
@@ -153,7 +158,7 @@ class GatewayReleaseServiceTest {
 
     @Test
     void shouldKeepReleasePartiallyAppliedUntilAllInstancesLoadRevision() {
-        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of()))
+        when(routeConfigService.publishManaged("base-v1", "release-1", List.of(), Map.of(), NO_GLOBAL_RULE_CHANGES))
                 .thenReturn(new GatewayManagedPublishResult("base-v1", "target-v2", "spring: {}"));
         when(verificationService.verify("release-1"))
                 .thenReturn(new GatewayInstanceVerification(2, 1, List.of()));

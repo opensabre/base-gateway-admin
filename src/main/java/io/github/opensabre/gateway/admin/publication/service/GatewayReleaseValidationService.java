@@ -6,6 +6,7 @@ import io.github.opensabre.gateway.admin.api.model.GatewayApi;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.PolicyType;
 import io.github.opensabre.gateway.admin.policy.service.GatewayPolicyCompiler;
+import io.github.opensabre.gateway.admin.policy.service.GatewayGlobalRuleCompiler;
 import io.github.opensabre.gateway.admin.policy.service.GatewayPolicyService;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayApiPublicationMapper;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayApplicationRouteMapper;
@@ -32,6 +33,7 @@ public class GatewayReleaseValidationService {
     private final GatewayRouteCompiler routeCompiler;
     private final GatewayPolicyService policyService;
     private final GatewayPolicyCompiler policyCompiler;
+    private final GatewayGlobalRuleCompiler globalRuleCompiler;
     private final IGatewayRouteConfigService routeConfigService;
     private final GatewayResourceBindingValidator resourceBindingValidator;
 
@@ -41,6 +43,7 @@ public class GatewayReleaseValidationService {
             GatewayRouteCompiler routeCompiler,
             GatewayPolicyService policyService,
             GatewayPolicyCompiler policyCompiler,
+            GatewayGlobalRuleCompiler globalRuleCompiler,
             IGatewayRouteConfigService routeConfigService,
             GatewayResourceBindingValidator resourceBindingValidator) {
         this.apiMapper = apiMapper;
@@ -49,6 +52,7 @@ public class GatewayReleaseValidationService {
         this.routeCompiler = routeCompiler;
         this.policyService = policyService;
         this.policyCompiler = policyCompiler;
+        this.globalRuleCompiler = globalRuleCompiler;
         this.routeConfigService = routeConfigService;
         this.resourceBindingValidator = resourceBindingValidator;
     }
@@ -88,7 +92,10 @@ public class GatewayReleaseValidationService {
             applyPolicies(routes.get(apiCandidates.size() + index), application.getServiceId(), null, circuitBreakers);
         }
         return new ReleaseValidationResult(currentVersion, apiCandidates.size(), applications.size(),
-                routes, Map.copyOf(circuitBreakers));
+                routes, Map.copyOf(circuitBreakers), globalRuleCompiler.compile(
+                        policyService.resolve(PolicyType.DEFAULT_FILTERS, null, null),
+                        policyService.resolve(PolicyType.SECURITY_HEADERS, null, null),
+                        policyService.resolve(PolicyType.CORS, null, null)));
     }
 
     private void applyPolicies(GatewayRoute route, String serviceId, String apiId,

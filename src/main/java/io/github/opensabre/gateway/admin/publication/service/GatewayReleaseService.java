@@ -76,7 +76,7 @@ public class GatewayReleaseService {
         GatewayManagedPublishResult published = null;
         try {
             published = routeConfigService.publishManaged(baseVersion, release.getId(),
-                    candidate.managedRoutes(), candidate.circuitBreakerInstances());
+                    candidate.managedRoutes(), candidate.circuitBreakerInstances(), candidate.globalRules());
             saveImmutableVersion(published);
             saveManagedRouteItems(release.getId(), candidate);
             saveOfflineItems(release.getId());
