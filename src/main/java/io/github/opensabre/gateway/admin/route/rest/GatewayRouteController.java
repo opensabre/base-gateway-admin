@@ -1,9 +1,6 @@
 package io.github.opensabre.gateway.admin.route.rest;
 
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteConfig;
-import io.github.opensabre.gateway.admin.route.model.GatewayRouteChange;
-import io.github.opensabre.gateway.admin.route.model.GatewayRouteDeleteForm;
-import io.github.opensabre.gateway.admin.route.model.GatewayDefaultFilterChange;
 import io.github.opensabre.gateway.admin.route.model.GatewayOauth2ClientChange;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import io.github.opensabre.gateway.admin.integration.GatewayIntegrationProperties;
@@ -12,9 +9,6 @@ import io.github.opensabre.governance.audit.annotations.OperationType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,41 +41,6 @@ public class GatewayRouteController {
     @Operation(summary = "查询网关路由配置")
     public GatewayRouteConfig getCurrentConfig() {
         return gatewayRouteConfigService.getCurrentConfig();
-    }
-
-    /** 新增路由并立即发布至 Nacos。 */
-    @PostMapping
-    @Operation(summary = "新增并发布网关路由")
-    @Audit(operationType = OperationType.CREATE, description = "新增并发布网关路由", module = "GATEWAY_ROUTE", response = true, key = "#change.route.id")
-    public GatewayRouteConfig create(@Valid @RequestBody GatewayRouteChange change) {
-        requireWriteEnabled();
-        return gatewayRouteConfigService.create(change);
-    }
-
-    /** 修改路由并立即发布至 Nacos。 */
-    @PutMapping("/{routeId}")
-    @Operation(summary = "修改并发布网关路由")
-    @Audit(operationType = OperationType.UPDATE, description = "修改并发布网关路由", module = "GATEWAY_ROUTE", response = true, key = "#routeId")
-    public GatewayRouteConfig update(@PathVariable String routeId, @Valid @RequestBody GatewayRouteChange change) {
-        requireWriteEnabled();
-        return gatewayRouteConfigService.update(routeId, change);
-    }
-
-    /** 删除路由并立即发布至 Nacos。 */
-    @DeleteMapping("/{routeId}")
-    @Operation(summary = "删除并发布网关路由")
-    @Audit(operationType = OperationType.DELETE, description = "删除并发布网关路由", module = "GATEWAY_ROUTE", response = true, key = "#routeId")
-    public GatewayRouteConfig delete(@PathVariable String routeId, @Valid @RequestBody GatewayRouteDeleteForm form) {
-        requireWriteEnabled();
-        return gatewayRouteConfigService.delete(routeId, form.getBaseVersion());
-    }
-
-    @PutMapping("/default-filters")
-    @Operation(summary = "更新并发布网关全局过滤器")
-    @Audit(operationType = OperationType.UPDATE, description = "更新并发布网关全局过滤器", module = "GATEWAY_FILTER", response = true)
-    public GatewayRouteConfig updateDefaultFilters(@Valid @RequestBody GatewayDefaultFilterChange change) {
-        requireWriteEnabled();
-        return gatewayRouteConfigService.updateDefaultFilters(change);
     }
 
     /** 显式发布网关 OAuth2/OIDC 登录认证方式，不会修改授权服务的客户端。 */

@@ -12,6 +12,7 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayReleaseResult;
 import io.github.opensabre.gateway.admin.publication.model.GatewayRollbackRequest;
 import io.github.opensabre.gateway.admin.publication.model.GatewayInstanceVerification;
 import io.github.opensabre.gateway.admin.publication.model.OfflineRequest;
+import io.github.opensabre.gateway.admin.publication.model.LegacyRouteAdoptionRequest;
 import io.github.opensabre.gateway.admin.publication.service.GatewayPublicationService;
 import io.github.opensabre.gateway.admin.publication.service.GatewayReleaseService;
 import io.github.opensabre.gateway.admin.publication.service.GatewayReleaseValidationService;
@@ -87,6 +88,15 @@ public class GatewayPublicationController {
     public GatewayApplicationRoute createApplicationDraft(
             @Valid @RequestBody ApplicationRouteChange change) {
         return service.createApplicationDraft(change);
+    }
+
+    @PostMapping("/application-routes/adopt")
+    @Operation(summary = "将非托管运行时路由导入为应用路由草稿")
+    @Audit(operationType = OperationType.CREATE, description = "导入遗留网关路由",
+            module = "GATEWAY_APPLICATION_ROUTE", response = true, key = "#request.routeId")
+    public GatewayApplicationRoute adoptLegacyRoute(
+            @Valid @RequestBody LegacyRouteAdoptionRequest request) {
+        return service.adoptLegacyRoute(request.routeId(), request.baseVersion());
     }
 
     @PutMapping("/application-routes/{id}")

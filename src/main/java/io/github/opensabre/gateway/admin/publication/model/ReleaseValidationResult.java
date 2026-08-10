@@ -11,6 +11,7 @@ public record ReleaseValidationResult(
         String baseVersion,
         int apiRouteCount,
         int applicationRouteCount,
+        List<String> replacedLegacyRouteIds,
         List<GatewayRoute> managedRoutes,
         Map<String, Map<String, Object>> circuitBreakerInstances,
         GlobalRuleCompilation globalRules) {

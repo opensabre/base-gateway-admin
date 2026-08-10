@@ -159,6 +159,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
      */
     @Override
     public GatewayManagedPublishResult publishManaged(String baseVersion, String revision,
+            List<String> replacedRouteIds,
             List<GatewayRoute> managedRoutes,
             Map<String, Map<String, Object>> circuitBreakerInstances,
             GlobalRuleCompilation globalRules) {
@@ -168,8 +169,16 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             throw new IllegalStateException("网关配置已被其他人修改，请刷新后重试");
         }
         managedRoutes.forEach(GatewayRouteConfigService::validateRoute);
+        Set<String> replacements = Set.copyOf(replacedRouteIds == null ? List.of() : replacedRouteIds);
+        if (replacements.stream().anyMatch(GatewayRouteConfigService::isManagedRoute)) {
+            throw new IllegalArgumentException("不能通过遗留路由纳管替换控制面托管路由");
+        }
+        Set<String> currentRouteIds = parseRoutes(content).stream().map(GatewayRoute::getId).collect(java.util.stream.Collectors.toSet());
+        if (!currentRouteIds.containsAll(replacements)) {
+            throw new IllegalStateException("待纳管的遗留路由已不存在，请刷新草稿");
+        }
         List<GatewayRoute> merged = new ArrayList<>(parseRoutes(content).stream()
-                .filter(route -> !isManagedRoute(route.getId())).toList());
+                .filter(route -> !isManagedRoute(route.getId()) && !replacements.contains(route.getId())).toList());
         Set<String> ids = new java.util.HashSet<>();
         merged.forEach(route -> ids.add(route.getId()));
         for (GatewayRoute route : managedRoutes) {

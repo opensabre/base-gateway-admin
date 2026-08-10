@@ -39,6 +39,8 @@ public class GatewayApplicationRoute extends BasePo {
     private String approvedBy;
     private Date approvedTime;
     private String publishedVersion;
+    /** 纳管前的非托管 Route ID；首次正式发布时在同一次 CAS 中替换。 */
+    private String legacyRouteId;
     @Version
     private Integer lockVersion;
 }

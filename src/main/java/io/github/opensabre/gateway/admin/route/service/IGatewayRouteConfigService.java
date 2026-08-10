@@ -38,7 +38,8 @@ public interface IGatewayRouteConfigService {
     GatewayRouteConfig updateOauth2Clients(GatewayOauth2ClientChange change);
 
     /** 原子替换控制面托管路由及其 Resilience4j 实例，保留其他配置。 */
-    GatewayManagedPublishResult publishManaged(String baseVersion, String revision, List<GatewayRoute> managedRoutes,
+    GatewayManagedPublishResult publishManaged(String baseVersion, String revision, List<String> replacedRouteIds,
+            List<GatewayRoute> managedRoutes,
             Map<String, Map<String, Object>> circuitBreakerInstances, GlobalRuleCompilation globalRules);
 
     /** 使用当前版本 CAS 发布一个已保存的完整历史快照。 */

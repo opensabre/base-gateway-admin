@@ -6,6 +6,7 @@ import io.github.opensabre.gateway.admin.publication.dao.GatewayApplicationRoute
 import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication;
 import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
+import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,12 +24,13 @@ class GatewayPublicationServiceTest {
     private final GatewayApplicationRouteMapper applicationRouteMapper = mock(GatewayApplicationRouteMapper.class);
     private final GatewayRouteCompiler compiler = mock(GatewayRouteCompiler.class);
     private final GatewayResourceBindingValidator resourceValidator = mock(GatewayResourceBindingValidator.class);
+    private final IGatewayRouteConfigService routeConfigService = mock(IGatewayRouteConfigService.class);
     private GatewayPublicationService service;
 
     @BeforeEach
     void setUp() {
         service = new GatewayPublicationService(apiMapper, publicationMapper, applicationRouteMapper,
-                compiler, resourceValidator, new ObjectMapper());
+                compiler, resourceValidator, new ObjectMapper(), routeConfigService);
     }
 
     @Test
