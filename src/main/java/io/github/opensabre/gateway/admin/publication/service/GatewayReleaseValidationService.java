@@ -92,6 +92,8 @@ public class GatewayReleaseValidationService {
             applyPolicies(routes.get(apiCandidates.size() + index), application.getServiceId(), null, circuitBreakers);
         }
         return new ReleaseValidationResult(currentVersion, apiCandidates.size(), applications.size(),
+                applications.stream().map(GatewayApplicationRoute::getLegacyRouteId)
+                        .filter(value -> value != null && !value.isBlank()).distinct().toList(),
                 routes, Map.copyOf(circuitBreakers), globalRuleCompiler.compile(
                         policyService.resolve(PolicyType.DEFAULT_FILTERS, null, null),
                         policyService.resolve(PolicyType.SECURITY_HEADERS, null, null),

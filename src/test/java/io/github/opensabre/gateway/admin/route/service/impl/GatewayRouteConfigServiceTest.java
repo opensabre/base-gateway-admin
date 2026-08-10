@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -42,12 +43,36 @@ class GatewayRouteConfigServiceTest {
                 manager, "base-gateway.yml", "DEFAULT_GROUP");
         String baseVersion = service.getCurrentConfig().getVersion();
 
-        service.publishManaged(baseVersion, "release-1", List.of(), Map.of(),
+        service.publishManaged(baseVersion, "release-1", List.of(), List.of(), Map.of(),
                 new io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation(
                         false, List.of(), false, Map.of(), false));
 
         verify(configService).publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
                 anyString(), eq(baseVersion), eq("yaml"));
+    }
+
+    @Test
+    void shouldAtomicallyReplaceLegacyRouteWithManagedRoute() throws Exception {
+        String yaml = "spring:\n  cloud:\n    gateway:\n      routes:\n        - id: legacy-orders\n          uri: lb://orders\n          predicates:\n            - Path=/orders/**\n";
+        NacosConfigManager manager = mock(NacosConfigManager.class);
+        ConfigService configService = mock(ConfigService.class);
+        when(manager.getConfigService()).thenReturn(configService);
+        when(configService.getConfig("base-gateway.yml", "DEFAULT_GROUP", 10_000L)).thenReturn(yaml);
+        when(configService.publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                anyString(), anyString(), eq("yaml"))).thenReturn(true);
+        GatewayRouteConfigService service = new GatewayRouteConfigService(manager, "base-gateway.yml", "DEFAULT_GROUP");
+        GatewayRoute managed = route("application-1", "lb://orders", "Path", "pattern", "/orders/**");
+
+        service.publishManaged(service.getCurrentConfig().getVersion(), "release-1",
+                List.of("legacy-orders"), List.of(managed), Map.of(),
+                new io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation(
+                        false, List.of(), false, Map.of(), false));
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(configService).publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                content.capture(), anyString(), eq("yaml"));
+        assertThat(GatewayRouteConfigService.parseRoutes(content.getValue()))
+                .extracting(GatewayRoute::getId).containsExactly("application-1");
     }
 
     @Test

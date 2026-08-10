@@ -13,6 +13,8 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRou
 import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
+import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
+import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,19 +38,22 @@ public class GatewayPublicationService {
     private final GatewayRouteCompiler compiler;
     private final GatewayResourceBindingValidator resourceBindingValidator;
     private final ObjectMapper objectMapper;
+    private final IGatewayRouteConfigService routeConfigService;
 
     public GatewayPublicationService(GatewayApiMapper apiMapper,
             GatewayApiPublicationMapper publicationMapper,
             GatewayApplicationRouteMapper applicationRouteMapper,
             GatewayRouteCompiler compiler,
             GatewayResourceBindingValidator resourceBindingValidator,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            IGatewayRouteConfigService routeConfigService) {
         this.apiMapper = apiMapper;
         this.publicationMapper = publicationMapper;
         this.applicationRouteMapper = applicationRouteMapper;
         this.compiler = compiler;
         this.resourceBindingValidator = resourceBindingValidator;
         this.objectMapper = objectMapper;
+        this.routeConfigService = routeConfigService;
     }
 
     /** 查询 API 发布声明。 */
@@ -137,6 +142,54 @@ public class GatewayPublicationService {
         compiler.compile(List.of(), List.of(draft));
         applicationRouteMapper.insert(draft);
         return draft;
+    }
+
+    /** 导入非托管运行时路由；旧 Route 仅在该草稿正式发布成功时原子移除。 */
+    @Transactional
+    public GatewayApplicationRoute adoptLegacyRoute(String routeId, String baseVersion) {
+        if (routeId.startsWith("api-") || routeId.startsWith("application-")) {
+            throw new IllegalArgumentException("该路由已经由控制面托管");
+        }
+        var snapshot = routeConfigService.getCurrentConfig();
+        if (!snapshot.getVersion().equals(baseVersion)) {
+            throw new IllegalStateException("网关配置已变化，请刷新后重新导入");
+        }
+        GatewayRoute source = snapshot.getRoutes().stream().filter(route -> routeId.equals(route.getId()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("遗留路由不存在：" + routeId));
+        Long imported = applicationRouteMapper.selectCount(new LambdaQueryWrapper<GatewayApplicationRoute>()
+                .eq(GatewayApplicationRoute::getLegacyRouteId, routeId));
+        if (imported != null && imported > 0) {
+            throw new IllegalStateException("遗留路由已经存在纳管草稿：" + routeId);
+        }
+        String path = definitionValue(source.getPredicates(), "Path", "pattern", "patterns", "value");
+        if (path == null || path.isBlank()) {
+            throw new IllegalArgumentException("只有包含 Path 断言的路由可以纳管");
+        }
+        String method = definitionValue(source.getPredicates(), "Method", "method", "methods", "value");
+        String serviceId = source.getUri().startsWith("lb://") ? source.getUri().substring(5) : source.getId();
+        GatewayApplicationRoute draft = new GatewayApplicationRoute();
+        apply(draft, new ApplicationRouteChange(serviceId, source.getId(), path, source.getUri(), method,
+                null, source.getOrder(), source.getPredicates(), source.getFilters(), 0));
+        draft.setLegacyRouteId(routeId);
+        draft.setLockVersion(0);
+        compiler.compile(List.of(), List.of(draft));
+        if (applicationRouteMapper.insert(draft) != 1) {
+            throw new IllegalStateException("创建遗留路由纳管草稿失败");
+        }
+        return hydrateDefinitions(draft);
+    }
+
+    private static String definitionValue(List<GatewayRouteDefinition> definitions, String name, String... keys) {
+        if (definitions == null) return null;
+        return definitions.stream().filter(value -> name.equals(value.getName())).findFirst()
+                .map(value -> {
+                    for (String key : keys) {
+                        String result = value.getArgs() == null ? null : value.getArgs().get(key);
+                        if (result != null && !result.isBlank()) return result;
+                    }
+                    return value.getArgs() == null || value.getArgs().isEmpty()
+                            ? null : value.getArgs().values().iterator().next();
+                }).orElse(null);
     }
 
     /** 修改尚未发布的应用级路由草稿。 */

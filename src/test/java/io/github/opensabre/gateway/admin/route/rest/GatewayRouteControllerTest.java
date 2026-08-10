@@ -1,7 +1,7 @@
 package io.github.opensabre.gateway.admin.route.rest;
 
 import io.github.opensabre.gateway.admin.integration.GatewayIntegrationProperties;
-import io.github.opensabre.gateway.admin.route.model.GatewayRouteChange;
+import io.github.opensabre.gateway.admin.route.model.GatewayOauth2ClientChange;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,7 @@ class GatewayRouteControllerTest {
         GatewayRouteController controller = new GatewayRouteController(service, properties);
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> controller.create(new GatewayRouteChange()))
+                .isThrownBy(() -> controller.updateOauth2Clients(new GatewayOauth2ClientChange()))
                 .withMessageContaining("管理员停用");
         verifyNoInteractions(service);
     }

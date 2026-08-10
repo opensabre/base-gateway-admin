@@ -20,6 +20,13 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 4. 验证新增、修改、删除及网关运行时生效；验证后恢复原始配置。
 5. 如需紧急冻结配置写入，设置 `GATEWAY_CONFIGURATION_WRITE_ENABLED=false` 并重启本服务。
 
+路由新增、修改、下线统一通过 API/应用路由草稿和发布中心处理。旧的 `/routes` 直接新增、
+修改、删除以及 `/routes/default-filters` 写接口不再暴露；`GET /routes` 保留为运行配置只读
+快照，OAuth2 认证方式仍使用 `/routes/oauth2-clients`。
+
+非托管运行时路由可调用 `POST /application-routes/adopt` 导入应用路由草稿。正式发布时，
+控制面会在同一次 Nacos CAS 中移除旧 Route ID 并加入托管 Route，发布失败不会改变旧路由。
+
 ## IP 黑白名单
 
 黑白名单复用分层策略和发布流程，在 `GLOBAL`、`APPLICATION`、`API` 作用域保存
@@ -36,3 +43,9 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 未保存全局过滤器策略时，管理端从当前 Nacos 配置导入编辑，不会因打开页面丢失现有项。
 安全响应头通过 Filter 快捷模板生成，仍可逐项修改和删除。
 数据库升级需执行 `db/migrations/V20260809_01__expand_gateway_policy_config.sql`。
+
+## 运行监控
+
+`GET /monitoring/routes` 只执行服务端定义的 PromQL，返回按 Route ID 聚合的最近 5 分钟
+请求率、5xx 错误率和 P95 延迟原始快照。接口不接受客户端 PromQL，避免把控制面变成任意
+Prometheus 查询代理。

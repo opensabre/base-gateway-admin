@@ -116,12 +116,14 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_application_route (
     approved_by VARCHAR(100),
     approved_time DATETIME,
     published_version VARCHAR(64),
+    legacy_route_id VARCHAR(200),
     lock_version INT NOT NULL DEFAULT 0,
     created_by VARCHAR(100) NOT NULL,
     created_time DATETIME NOT NULL,
     updated_by VARCHAR(100) NOT NULL,
     updated_time DATETIME NOT NULL,
     UNIQUE KEY uk_gateway_application_route (service_id, external_path, http_method),
+    UNIQUE KEY uk_gateway_application_legacy_route (legacy_route_id),
     INDEX idx_gateway_application_route_status (status)
 ) COMMENT='网关应用级路由';
 
