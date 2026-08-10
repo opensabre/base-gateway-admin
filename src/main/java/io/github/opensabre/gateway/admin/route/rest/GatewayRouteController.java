@@ -46,7 +46,8 @@ public class GatewayRouteController {
     /** 显式发布网关 OAuth2/OIDC 登录认证方式，不会修改授权服务的客户端。 */
     @PutMapping("/oauth2-clients")
     @Operation(summary = "更新并发布网关 OAuth2 认证方式")
-    @Audit(operationType = OperationType.UPDATE, description = "更新并发布网关 OAuth2 认证方式", module = "GATEWAY_OAUTH2_CLIENT", response = true)
+    @Audit(operationType = OperationType.UPDATE, description = "更新并发布网关 OAuth2 认证方式",
+            module = "GATEWAY_OAUTH2_CLIENT", response = true, key = "#change.baseVersion")
     public GatewayRouteConfig updateOauth2Clients(@Valid @RequestBody GatewayOauth2ClientChange change) {
         requireWriteEnabled();
         return gatewayRouteConfigService.updateOauth2Clients(change);

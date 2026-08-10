@@ -84,7 +84,8 @@ public class GatewayPublicationController {
     @PostMapping("/application-routes")
     @Operation(summary = "新增应用级路由草稿")
     @Audit(operationType = OperationType.CREATE, description = "新增应用级路由草稿",
-            module = "GATEWAY_APPLICATION_ROUTE", response = true)
+            module = "GATEWAY_APPLICATION_ROUTE", response = true,
+            key = "#change.serviceId + ':' + #change.routeName")
     public GatewayApplicationRoute createApplicationDraft(
             @Valid @RequestBody ApplicationRouteChange change) {
         return service.createApplicationDraft(change);
@@ -121,6 +122,8 @@ public class GatewayPublicationController {
     /** 解析三级策略并生成候选配置，但不写入 Nacos。 */
     @PostMapping("/releases/validate")
     @Operation(summary = "校验网关发布候选")
+    @Audit(operationType = OperationType.QUERY, description = "校验网关发布候选",
+            module = "GATEWAY_RELEASE", response = true, key = "#request.baseVersion")
     public ReleaseValidationResult validate(@Valid @RequestBody ReleaseValidationRequest request) {
         return validationService.validate(request.baseVersion());
     }
@@ -129,7 +132,7 @@ public class GatewayPublicationController {
     @PostMapping("/releases")
     @Operation(summary = "发布网关候选配置")
     @Audit(operationType = OperationType.CREATE, description = "发布网关候选配置",
-            module = "GATEWAY_RELEASE", response = true)
+            module = "GATEWAY_RELEASE", response = true, key = "#request.baseVersion")
     public GatewayReleaseResult publish(@Valid @RequestBody ReleaseValidationRequest request) {
         return releaseService.publish(request.baseVersion());
     }
@@ -157,6 +160,8 @@ public class GatewayPublicationController {
 
     @PostMapping("/releases/{id}/verify-instances")
     @Operation(summary = "重新确认网关实例加载状态")
+    @Audit(operationType = OperationType.UPDATE, description = "确认网关实例加载状态",
+            module = "GATEWAY_RELEASE", response = true, key = "#id")
     public GatewayInstanceVerification verifyInstances(@PathVariable String id) {
         return releaseService.verifyInstances(id);
     }
