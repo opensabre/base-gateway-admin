@@ -44,7 +44,8 @@ public class GatewayPolicyController {
     @PutMapping
     @Operation(summary = "保存网关治理策略")
     @Audit(operationType = OperationType.UPDATE, description = "保存网关治理策略",
-            module = "GATEWAY_POLICY", response = true)
+            module = "GATEWAY_POLICY", response = true,
+            key = "#scopeType + ':' + (#scopeId == null ? 'GLOBAL' : #scopeId) + ':' + #policyType")
     public GatewayPolicy save(@RequestParam PolicyScopeType scopeType,
             @RequestParam(required = false) String scopeId,
             @RequestParam PolicyType policyType,
