@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/monitoring")
 public class GatewayMonitoringController {
 
+    private static final String EMPTY_VECTOR =
+            "{\"status\":\"success\",\"data\":{\"resultType\":\"vector\",\"result\":[]}}";
+
     private static final String REQUEST_RATE =
             "sum by (routeId) (rate(spring_cloud_gateway_requests_seconds_count[5m]))";
     private static final String ERROR_RATE =
@@ -32,8 +35,16 @@ public class GatewayMonitoringController {
     @Operation(summary = "查询网关路由请求率、错误率和 P95 延迟")
     public GatewayRouteMetricsSnapshot routes() {
         return new GatewayRouteMetricsSnapshot(
-                prometheus.query(REQUEST_RATE),
-                prometheus.query(ERROR_RATE),
-                prometheus.query(P95_LATENCY));
+                queryOrEmpty(REQUEST_RATE),
+                queryOrEmpty(ERROR_RATE),
+                queryOrEmpty(P95_LATENCY));
+    }
+
+    private String queryOrEmpty(String promql) {
+        try {
+            return prometheus.query(promql);
+        } catch (IllegalStateException unavailable) {
+            return EMPTY_VECTOR;
+        }
     }
 }

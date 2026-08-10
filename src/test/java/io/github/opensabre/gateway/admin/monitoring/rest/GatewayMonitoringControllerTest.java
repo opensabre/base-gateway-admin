@@ -25,4 +25,17 @@ class GatewayMonitoringControllerTest {
         verify(prometheus).query(contains("status=~\"5..\""));
         verify(prometheus).query(contains("bucket[5m]"));
     }
+
+    @Test
+    void returnsEmptyVectorsWhenPrometheusIsUnavailable() {
+        PrometheusReadClient prometheus = mock(PrometheusReadClient.class);
+        when(prometheus.query(contains("spring_cloud_gateway_requests_seconds")))
+                .thenThrow(new IllegalStateException("unavailable"));
+
+        var snapshot = new GatewayMonitoringController(prometheus).routes();
+
+        assertThat(snapshot.requestRate()).contains("\"result\":[]");
+        assertThat(snapshot.errorRate()).contains("\"result\":[]");
+        assertThat(snapshot.p95Latency()).contains("\"result\":[]");
+    }
 }
