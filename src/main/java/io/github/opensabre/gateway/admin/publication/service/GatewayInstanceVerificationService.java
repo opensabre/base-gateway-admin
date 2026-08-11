@@ -9,6 +9,7 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayInstanceVerifi
 import io.github.opensabre.gateway.admin.service.GatewayServiceCatalogService;
 import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,15 +24,29 @@ public class GatewayInstanceVerificationService {
     private final GatewayRevisionReadClient revisionReadClient;
     private final GatewayInstanceRevisionMapper revisionMapper;
     private final String gatewayServiceName;
+    private final int verificationAttempts;
+    private final long verificationIntervalMillis;
 
+    @Autowired
     public GatewayInstanceVerificationService(GatewayServiceCatalogService catalogService,
             GatewayRevisionReadClient revisionReadClient,
             GatewayInstanceRevisionMapper revisionMapper,
-            @Value("${opensabre.gateway-admin.gateway-service-name:base-gateway}") String gatewayServiceName) {
+            @Value("${opensabre.gateway-admin.gateway-service-name:base-gateway}") String gatewayServiceName,
+            @Value("${opensabre.gateway-admin.verification.attempts:10}") int verificationAttempts,
+            @Value("${opensabre.gateway-admin.verification.interval-millis:500}") long verificationIntervalMillis) {
         this.catalogService = catalogService;
         this.revisionReadClient = revisionReadClient;
         this.revisionMapper = revisionMapper;
         this.gatewayServiceName = gatewayServiceName;
+        this.verificationAttempts = Math.max(1, verificationAttempts);
+        this.verificationIntervalMillis = Math.max(0, verificationIntervalMillis);
+    }
+
+    GatewayInstanceVerificationService(GatewayServiceCatalogService catalogService,
+            GatewayRevisionReadClient revisionReadClient,
+            GatewayInstanceRevisionMapper revisionMapper,
+            String gatewayServiceName) {
+        this(catalogService, revisionReadClient, revisionMapper, gatewayServiceName, 1, 0);
     }
 
     /** 执行一次即时确认；未加载和不可达均保留为可再次确认的状态。 */
@@ -74,16 +89,32 @@ public class GatewayInstanceVerificationService {
         result.setReleaseId(expectedRevision);
         result.setInstanceId(instance.ip() + ":" + instance.port());
         result.setReportedTime(new Date());
-        try {
-            String loadedRevision = revisionReadClient.fetch(instance);
-            result.setLoadedVersion(loadedRevision);
-            result.setStatus(expectedRevision.equals(loadedRevision)
-                    ? GatewayInstanceRevisionStatus.LOADED : GatewayInstanceRevisionStatus.PENDING);
-        } catch (RuntimeException exception) {
-            result.setStatus(GatewayInstanceRevisionStatus.UNREACHABLE);
-            result.setErrorMessage(abbreviate(exception.getMessage()));
+        for (int attempt = 1; attempt <= verificationAttempts; attempt++) {
+            try {
+                String loadedRevision = revisionReadClient.fetch(instance);
+                result.setLoadedVersion(loadedRevision);
+                result.setStatus(expectedRevision.equals(loadedRevision)
+                        ? GatewayInstanceRevisionStatus.LOADED : GatewayInstanceRevisionStatus.PENDING);
+                result.setErrorMessage(null);
+                if (result.getStatus() == GatewayInstanceRevisionStatus.LOADED) break;
+            } catch (RuntimeException exception) {
+                result.setStatus(GatewayInstanceRevisionStatus.UNREACHABLE);
+                result.setErrorMessage(abbreviate(exception.getMessage()));
+            }
+            if (attempt < verificationAttempts && !waitBeforeRetry()) break;
         }
         return result;
+    }
+
+    private boolean waitBeforeRetry() {
+        if (verificationIntervalMillis == 0) return true;
+        try {
+            Thread.sleep(verificationIntervalMillis);
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private String abbreviate(String value) {

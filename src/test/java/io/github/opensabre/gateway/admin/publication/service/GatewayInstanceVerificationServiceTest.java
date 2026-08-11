@@ -15,6 +15,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** 网关实例加载修订号的汇总与异常隔离测试。 */
@@ -46,6 +48,25 @@ class GatewayInstanceVerificationServiceTest {
                 GatewayInstanceRevisionStatus.LOADED,
                 GatewayInstanceRevisionStatus.PENDING,
                 GatewayInstanceRevisionStatus.UNREACHABLE);
+    }
+
+    @Test
+    void shouldWaitForGatewayToLoadPublishedRevision() {
+        GatewayServiceCatalogService catalog = mock(GatewayServiceCatalogService.class);
+        GatewayRevisionReadClient client = mock(GatewayRevisionReadClient.class);
+        GatewayInstanceRevisionMapper mapper = mock(GatewayInstanceRevisionMapper.class);
+        GatewayServiceInstance gateway = instance("10.0.0.1", 8443);
+        when(catalog.getService("base-gateway")).thenReturn(
+                new GatewayServiceSummary("base-gateway", 1, 1, List.of(gateway)));
+        when(client.fetch(gateway)).thenReturn("release-6", "release-7");
+        when(mapper.insert(any())).thenReturn(1);
+        GatewayInstanceVerificationService service = new GatewayInstanceVerificationService(
+                catalog, client, mapper, "base-gateway", 3, 0);
+
+        GatewayInstanceVerification result = service.verify("release-7");
+
+        assertThat(result.allLoaded()).isTrue();
+        verify(client, times(2)).fetch(gateway);
     }
 
     private GatewayServiceInstance instance(String ip, int port) {
