@@ -1,6 +1,7 @@
 package io.github.opensabre.gateway.admin.monitoring.rest;
 
 import io.github.opensabre.gateway.admin.integration.PrometheusReadClient;
+import io.github.opensabre.gateway.admin.monitoring.service.GatewayRuntimeMonitoringService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,7 +17,8 @@ class GatewayMonitoringControllerTest {
         PrometheusReadClient prometheus = mock(PrometheusReadClient.class);
         when(prometheus.query(contains("spring_cloud_gateway_requests_seconds"))).thenReturn("{}");
 
-        var snapshot = new GatewayMonitoringController(prometheus).routes();
+        var snapshot = new GatewayMonitoringController(prometheus,
+                mock(GatewayRuntimeMonitoringService.class)).routes();
 
         assertThat(snapshot.requestRate()).isEqualTo("{}");
         assertThat(snapshot.errorRate()).isEqualTo("{}");
@@ -32,7 +34,8 @@ class GatewayMonitoringControllerTest {
         when(prometheus.query(contains("spring_cloud_gateway_requests_seconds")))
                 .thenThrow(new IllegalStateException("unavailable"));
 
-        var snapshot = new GatewayMonitoringController(prometheus).routes();
+        var snapshot = new GatewayMonitoringController(prometheus,
+                mock(GatewayRuntimeMonitoringService.class)).routes();
 
         assertThat(snapshot.requestRate()).contains("\"result\":[]");
         assertThat(snapshot.errorRate()).contains("\"result\":[]");
