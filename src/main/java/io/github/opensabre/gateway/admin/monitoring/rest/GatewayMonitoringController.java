@@ -2,11 +2,14 @@ package io.github.opensabre.gateway.admin.monitoring.rest;
 
 import io.github.opensabre.gateway.admin.integration.PrometheusReadClient;
 import io.github.opensabre.gateway.admin.monitoring.model.GatewayRouteMetricsSnapshot;
+import io.github.opensabre.gateway.admin.monitoring.model.GatewayInstanceRuntime;
+import io.github.opensabre.gateway.admin.monitoring.service.GatewayRuntimeMonitoringService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 /** 只暴露固定的网关监控查询，禁止客户端提交任意 PromQL。 */
 @Tag(name = "网关运行监控")
@@ -26,9 +29,12 @@ public class GatewayMonitoringController {
                     + "(rate(spring_cloud_gateway_requests_seconds_bucket[5m])))";
 
     private final PrometheusReadClient prometheus;
+    private final GatewayRuntimeMonitoringService runtimeMonitoringService;
 
-    public GatewayMonitoringController(PrometheusReadClient prometheus) {
+    public GatewayMonitoringController(PrometheusReadClient prometheus,
+            GatewayRuntimeMonitoringService runtimeMonitoringService) {
         this.prometheus = prometheus;
+        this.runtimeMonitoringService = runtimeMonitoringService;
     }
 
     @GetMapping("/routes")
@@ -38,6 +44,12 @@ public class GatewayMonitoringController {
                 queryOrEmpty(REQUEST_RATE),
                 queryOrEmpty(ERROR_RATE),
                 queryOrEmpty(P95_LATENCY));
+    }
+
+    @GetMapping("/runtime")
+    @Operation(summary = "查询各网关实例最终生效的运行参数")
+    public List<GatewayInstanceRuntime> runtime() {
+        return runtimeMonitoringService.snapshots();
     }
 
     private String queryOrEmpty(String promql) {
