@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.integration.GatewayIntegrationProperties;
 import io.github.opensabre.gateway.admin.integration.NacosReadClient;
 import org.junit.jupiter.api.Test;

@@ -15,9 +15,9 @@ import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -250,7 +250,7 @@ public class GatewayPublicationService {
         }
         try {
             return objectMapper.writeValueAsString(definitions);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("路由断言或过滤器格式错误", exception);
         }
     }
@@ -283,7 +283,7 @@ public class GatewayPublicationService {
         }
         try {
             return objectMapper.readValue(json, DEFINITIONS);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("已保存的路由断言或过滤器无法解析", exception);
         }
     }

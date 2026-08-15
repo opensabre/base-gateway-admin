@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.publication.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.integration.GatewayRouteProbeClient;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayRouteProbeMapper;
 import io.github.opensabre.gateway.admin.publication.model.GatewayRouteProbeStatus;
@@ -33,7 +33,7 @@ class GatewayRouteProbeServiceTest {
         when(client.probe(first, "release-9", List.of("api-1", "api-2"))).thenReturn(List.of("api-2"));
         when(client.probe(second, "release-9", List.of("api-1", "api-2")))
                 .thenThrow(new IllegalStateException("timeout"));
-        when(mapper.insert(any())).thenReturn(1);
+        when(mapper.insert(any(io.github.opensabre.gateway.admin.publication.model.GatewayRouteProbe.class))).thenReturn(1);
         GatewayRouteProbeService service = new GatewayRouteProbeService(
                 catalog, client, mapper, new ObjectMapper(), "base-gateway");
 

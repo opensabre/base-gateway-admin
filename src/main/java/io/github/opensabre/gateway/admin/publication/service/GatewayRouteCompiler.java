@@ -8,9 +8,9 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRou
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import io.github.opensabre.gateway.admin.route.model.GatewayRoute;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -117,7 +117,7 @@ public class GatewayRouteCompiler {
         }
         try {
             return objectMapper.readValue(json, DEFINITIONS);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("应用路由断言或过滤器配置无法解析", exception);
         }
     }

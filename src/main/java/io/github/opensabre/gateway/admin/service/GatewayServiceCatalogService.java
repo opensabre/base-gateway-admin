@@ -1,7 +1,7 @@
 package io.github.opensabre.gateway.admin.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.integration.NacosReadClient;
 import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
 import io.github.opensabre.gateway.admin.service.model.GatewayServicePage;
@@ -9,7 +9,6 @@ import io.github.opensabre.gateway.admin.service.model.GatewayServiceSummary;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,8 +64,7 @@ public class GatewayServiceCatalogService {
 
     private Map<String, String> metadata(JsonNode node) {
         Map<String, String> result = new LinkedHashMap<>();
-        Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-        fields.forEachRemaining(field -> result.put(field.getKey(), field.getValue().asText()));
+        node.properties().forEach(field -> result.put(field.getKey(), field.getValue().asText()));
         return Map.copyOf(result);
     }
 }

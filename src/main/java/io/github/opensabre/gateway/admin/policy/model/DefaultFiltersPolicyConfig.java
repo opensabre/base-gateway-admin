@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Map;
 
-/** Editable draft representation of spring.cloud.gateway.default-filters. */
+/** Editable draft representation of spring.cloud.gateway.server.webflux.default-filters. */
 public record DefaultFiltersPolicyConfig(
         @NotNull @Size(min = 1, max = 50) List<@NotNull @Valid Filter> filters) {
 

@@ -1,4 +1,18 @@
+server:
+  port: ${SERVER_PORT:8030}
 spring:
+  application:
+    name: base-gateway-admin
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}
+        ip: ${NACOS_DISCOVERY_IP:}
+      config:
+        server-addr: ${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}
+        file-extension: yml
+  config:
+    import: optional:nacos:opensabre-common.yml?group=DEFAULT_GROUP&refreshEnabled=true
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:${DATASOURCE_DBTYPE:mysql}://${DATASOURCE_HOST:localhost}:${DATASOURCE_PORT:3306}/os_base_gateway_admin?characterEncoding=UTF-8&useUnicode=true&useSSL=false&allowPublicKeyRetrieval=true

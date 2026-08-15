@@ -9,7 +9,7 @@ import io.github.opensabre.gateway.admin.publication.model.PublicationStatus;
 import io.github.opensabre.gateway.admin.route.service.IGatewayRouteConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
@@ -38,7 +38,7 @@ class GatewayPublicationServiceTest {
         GatewayApiPublication published = publication(PublicationStatus.PUBLISHED);
         published.setPublishedVersion("version-1");
         when(publicationMapper.selectOne(any())).thenReturn(published);
-        when(publicationMapper.updateById(any())).thenReturn(1);
+        when(publicationMapper.updateById(any(GatewayApiPublication.class))).thenReturn(1);
         when(publicationMapper.selectById("publication-1")).thenAnswer(ignored -> published);
 
         GatewayApiPublication result = service.offlineApi("api-1", 3);
@@ -60,7 +60,7 @@ class GatewayPublicationServiceTest {
         GatewayApplicationRoute published = applicationRoute(PublicationStatus.PUBLISHED);
         published.setPublishedVersion("version-1");
         when(applicationRouteMapper.selectById("route-1")).thenReturn(published);
-        when(applicationRouteMapper.updateById(any())).thenReturn(1);
+        when(applicationRouteMapper.updateById(any(GatewayApplicationRoute.class))).thenReturn(1);
 
         GatewayApplicationRoute result = service.offlineApplicationRoute("route-1", 2);
 

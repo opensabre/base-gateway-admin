@@ -2,9 +2,9 @@ package io.github.opensabre.gateway.admin.api.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.api.dao.GatewayApiMapper;
 import io.github.opensabre.gateway.admin.api.model.ApiDiscoveryStatus;
 import io.github.opensabre.gateway.admin.api.model.ApiSourceType;
@@ -134,8 +134,8 @@ public class GatewayApiCatalogService {
                 throw new IllegalArgumentException("文档不是有效的 OpenAPI 3 文档");
             }
             List<DiscoveredApi> result = new ArrayList<>();
-            root.path("paths").fields().forEachRemaining(pathEntry ->
-                    pathEntry.getValue().fields().forEachRemaining(operation -> {
+            root.path("paths").properties().forEach(pathEntry ->
+                    pathEntry.getValue().properties().forEach(operation -> {
                         String method = operation.getKey().toLowerCase(Locale.ROOT);
                         if (!HTTP_METHODS.contains(method)) {
                             return;
@@ -151,7 +151,7 @@ public class GatewayApiCatalogService {
                                 operationId, summary, List.copyOf(tags), hash));
                     }));
             return List.copyOf(result);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("OpenAPI 文档不是有效 JSON", exception);
         }
     }
@@ -174,7 +174,7 @@ public class GatewayApiCatalogService {
     private String writeTags(List<String> tags) {
         try {
             return objectMapper.writeValueAsString(tags);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("API 标签无法序列化", exception);
         }
     }

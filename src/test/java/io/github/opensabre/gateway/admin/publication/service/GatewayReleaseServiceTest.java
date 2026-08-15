@@ -59,16 +59,16 @@ class GatewayReleaseServiceTest {
         service = new GatewayReleaseService(validationService, routeConfigService, releaseMapper,
                 versionMapper, apiMapper, applicationMapper, releaseItemMapper,
                 instanceRevisionMapper, verificationService, routeProbeMapper, routeProbeService);
-        when(releaseMapper.insert(any())).thenAnswer(invocation -> {
+        when(releaseMapper.insert(any(GatewayRelease.class))).thenAnswer(invocation -> {
             ((GatewayRelease) invocation.getArgument(0)).setId("release-1");
             return 1;
         });
-        when(releaseMapper.updateById(any())).thenReturn(1);
+        when(releaseMapper.updateById(any(GatewayRelease.class))).thenReturn(1);
         when(apiMapper.selectList(any())).thenReturn(List.of());
         when(applicationMapper.selectList(any())).thenReturn(List.of());
         when(versionMapper.selectCount(any())).thenReturn(0L);
-        when(versionMapper.insert(any())).thenReturn(1);
-        when(releaseItemMapper.insert(any())).thenReturn(1);
+        when(versionMapper.insert(any(GatewayConfigVersion.class))).thenReturn(1);
+        when(releaseItemMapper.insert(any(GatewayReleaseItem.class))).thenReturn(1);
         when(validationService.validate("base-v1"))
                 .thenReturn(new ReleaseValidationResult("base-v1", 1, 0, List.of(), List.of(), Map.of(),
                         NO_GLOBAL_RULE_CHANGES));
@@ -87,7 +87,7 @@ class GatewayReleaseServiceTest {
         assertThat(result.releaseId()).isEqualTo("release-1");
         assertThat(result.targetVersion()).isEqualTo("target-v2");
         assertThat(result.status()).isEqualTo(GatewayReleaseStatus.SUCCEEDED);
-        verify(versionMapper).insert(any());
+        verify(versionMapper).insert(any(GatewayConfigVersion.class));
     }
 
     @Test
@@ -163,7 +163,7 @@ class GatewayReleaseServiceTest {
         assertThat(result.sourceVersion()).isEqualTo("current-v3");
         assertThat(result.targetVersion()).isEqualTo("historical-v1");
         assertThat(result.status()).isEqualTo(GatewayReleaseStatus.SUCCEEDED);
-        verify(releaseItemMapper).insert(any());
+        verify(releaseItemMapper).insert(any(GatewayReleaseItem.class));
     }
 
     @Test

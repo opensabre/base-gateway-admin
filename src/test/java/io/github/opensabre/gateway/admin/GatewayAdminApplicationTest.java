@@ -1,11 +1,13 @@
 package io.github.opensabre.gateway.admin;
 
+import com.alibaba.cloud.nacos.NacosConfigManager;
 import io.github.opensabre.governance.audit.annotations.Audit;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,9 @@ class GatewayAdminApplicationTest {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @MockitoBean
+    private NacosConfigManager nacosConfigManager;
 
     @Test
     void contextLoads() {
