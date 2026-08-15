@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.policy.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.policy.dao.GatewayPolicyMapper;
 import io.github.opensabre.gateway.admin.policy.model.EffectivePolicy;
 import io.github.opensabre.gateway.admin.policy.model.GatewayPolicy;

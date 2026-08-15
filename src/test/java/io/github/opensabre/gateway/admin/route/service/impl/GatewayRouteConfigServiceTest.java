@@ -123,11 +123,35 @@ class GatewayRouteConfigServiceTest {
         String updated = GatewayRouteConfigService.replaceRoutes(yaml, List.of(route));
 
         assertThat(updated).contains("management:", "discovery:", "enabled: true");
+        assertThat(updated).contains("server:", "webflux:");
+        assertThat(updated).doesNotContain("gateway:\n      discovery:");
         assertThat(GatewayRouteConfigService.parseRoutes(updated)).singleElement()
                 .satisfies(parsed -> {
                     assertThat(parsed.getId()).isEqualTo("base-organization");
                     assertThat(parsed.getMetadata()).containsEntry("connect-timeout", 500)
                             .containsEntry("response-timeout", 2000);
+                });
+    }
+
+    @Test
+    void shouldParseBoot4GatewayRouteNode() {
+        String yaml = """
+                spring:
+                  cloud:
+                    gateway:
+                      server:
+                        webflux:
+                          routes:
+                            - id: base-sysadmin
+                              uri: lb://base-sysadmin
+                              predicates:
+                                - Path=/api/sysadmin/**
+                """;
+
+        assertThat(GatewayRouteConfigService.parseRoutes(yaml)).singleElement()
+                .satisfies(route -> {
+                    assertThat(route.getId()).isEqualTo("base-sysadmin");
+                    assertThat(route.getUri()).isEqualTo("lb://base-sysadmin");
                 });
     }
 

@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.api.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.github.opensabre.gateway.admin.api.dao.GatewayApiMapper;
 import io.github.opensabre.gateway.admin.api.model.GatewayApi;

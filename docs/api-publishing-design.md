@@ -10,7 +10,7 @@
 ## 2. 背景与现状
 
 当前控制面已经能够读取 `base-gateway.yml`，编辑
-`spring.cloud.gateway.routes` 和 `default-filters`，并通过 Nacos `casMd5`
+`spring.cloud.gateway.server.webflux.routes` 和 `default-filters`，并通过 Nacos `casMd5`
 发布完整配置。当前数据脚本也已经预留配置草稿、不可变版本、发布记录和实例生效记录。
 
 现有能力存在以下边界：
@@ -381,8 +381,8 @@ CSP、来源列表和自定义 Header 等类型化配置。
 - 自定义 Header 包含受保护名称或换行注入字符。
 - CORS 来源、凭证通配、方法或缓存时间不合法。
 
-`DEFAULT_FILTERS` 草稿按顺序写入 `spring.cloud.gateway.default-filters`，且必须保留启用的
-唯一 `TokenRelay`；CORS 写入 `spring.cloud.gateway.globalcors`。没有草稿时不接管既有
+`DEFAULT_FILTERS` 草稿按顺序写入 `spring.cloud.gateway.server.webflux.default-filters`，且必须保留启用的
+唯一 `TokenRelay`；CORS 写入 `spring.cloud.gateway.server.webflux.globalcors`。没有草稿时不接管既有
 节点，管理端首次编辑时从当前运行配置完整导入。安全响应头作为过滤器快捷模板生成。
 
 ### 11.2 回滚

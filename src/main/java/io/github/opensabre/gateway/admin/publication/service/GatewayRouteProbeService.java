@@ -1,8 +1,8 @@
 package io.github.opensabre.gateway.admin.publication.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.integration.GatewayRouteProbeClient;
 import io.github.opensabre.gateway.admin.publication.dao.GatewayRouteProbeMapper;
 import io.github.opensabre.gateway.admin.publication.model.GatewayRouteProbe;
@@ -91,7 +91,7 @@ public class GatewayRouteProbeService {
     private String toJson(List<String> values) {
         try {
             return objectMapper.writeValueAsString(values);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("序列化缺失路由失败", exception);
         }
     }

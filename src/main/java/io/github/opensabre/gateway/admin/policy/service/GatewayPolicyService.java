@@ -1,8 +1,8 @@
 package io.github.opensabre.gateway.admin.policy.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.policy.dao.GatewayPolicyMapper;
 import io.github.opensabre.gateway.admin.policy.model.AccessControlPolicyConfig;
 import io.github.opensabre.gateway.admin.policy.model.CircuitBreakerPolicyConfig;
@@ -144,7 +144,7 @@ public class GatewayPolicyService {
         }
         try {
             return objectMapper.writeValueAsString(config);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("策略配置无法序列化", exception);
         }
     }
@@ -194,7 +194,7 @@ public class GatewayPolicyService {
         };
         try {
             return objectMapper.readValue(configJson, type);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("数据库中的策略配置无法解析：" + policyType, exception);
         }
     }

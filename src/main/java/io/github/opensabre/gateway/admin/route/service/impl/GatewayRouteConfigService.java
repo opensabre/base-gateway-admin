@@ -278,9 +278,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         if (!(loaded instanceof Map<?, ?> root)) {
             return List.of();
         }
-        Object spring = root.get("spring");
-        Object cloud = child(spring, "cloud");
-        Object gateway = child(cloud, "gateway");
+        Object gateway = gatewayNode(root);
         Object routeValue = child(gateway, "routes");
         if (!(routeValue instanceof List<?> routeList)) {
             return List.of();
@@ -305,7 +303,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     @SuppressWarnings("unchecked")
     static List<GatewayRouteDefinition> parseDefaultFilters(String content) {
         Object loaded = new Yaml().load(content);
-        Object gateway = child(child(loaded instanceof Map<?, ?> root ? root.get("spring") : null, "cloud"), "gateway");
+        Object gateway = loaded instanceof Map<?, ?> root ? gatewayNode(root) : null;
         return parseDefinitions(child(gateway, "default-filters"), false);
     }
 
@@ -375,7 +373,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     }
 
     /**
-     * 仅替换 spring.cloud.gateway.routes 节点；路由外的键和值保持原有语义及顺序。
+     * 仅替换 spring.cloud.gateway.server.webflux.routes 节点；路由外的键和值保持原有语义及顺序。
      */
     @SuppressWarnings("unchecked")
     static String replaceRoutes(String content, List<GatewayRoute> routes) {
@@ -383,24 +381,16 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         if (!(loaded instanceof Map<?, ?> root)) {
             throw new IllegalStateException("网关配置不是有效的 YAML 对象");
         }
-        Object spring = root.get("spring");
-        Object cloud = child(spring, "cloud");
-        Object gateway = child(cloud, "gateway");
-        if (!(gateway instanceof Map<?, ?> gatewayMap)) {
-            throw new IllegalStateException("网关配置缺少 spring.cloud.gateway 节点");
-        }
-        ((Map<Object, Object>) gatewayMap).put("routes", toRouteMaps(routes));
+        mutableGatewayNode(root).put("routes", toRouteMaps(routes));
         return new Yaml().dump(root);
     }
 
-    /** 仅替换 spring.cloud.gateway.default-filters，不影响 routes 及其他网关配置。 */
+    /** 仅替换 spring.cloud.gateway.server.webflux.default-filters，不影响 routes 及其他网关配置。 */
     @SuppressWarnings("unchecked")
     static String replaceDefaultFilters(String content, List<GatewayRouteDefinition> filters) {
         Object loaded = new Yaml().load(content);
         if (!(loaded instanceof Map<?, ?> root)) throw new IllegalStateException("网关配置不是有效的 YAML 对象");
-        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
-        if (!(gateway instanceof Map<?, ?> gatewayMap)) throw new IllegalStateException("网关配置缺少 spring.cloud.gateway 节点");
-        ((Map<Object, Object>) gatewayMap).put("default-filters", toDefinitionMaps(filters));
+        mutableGatewayNode(root).put("default-filters", toDefinitionMaps(filters));
         return new Yaml().dump(root);
     }
 
@@ -412,11 +402,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         if (!(loaded instanceof Map<?, ?> root)) {
             throw new IllegalStateException("网关配置不是有效的 YAML 对象");
         }
-        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
-        if (!(gateway instanceof Map<?, ?> gatewayMap)) {
-            throw new IllegalStateException("网关配置缺少 spring.cloud.gateway 节点");
-        }
-        Map<Object, Object> mutableGateway = (Map<Object, Object>) gatewayMap;
+        Map<Object, Object> mutableGateway = mutableGatewayNode(root);
         if (configurations == null || configurations.isEmpty()) {
             mutableGateway.remove("globalcors");
             return new Yaml().dump(root);
@@ -435,7 +421,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     static Map<String, Map<String, Object>> parseGlobalCorsConfigurations(String content) {
         Object loaded = new Yaml().load(content);
         if (!(loaded instanceof Map<?, ?> root)) return Map.of();
-        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        Object gateway = gatewayNode(root);
         if (!(gateway instanceof Map<?, ?> gatewayMap)) return Map.of();
         Object globalCors = gatewayMap.get("globalcors");
         if (!(globalCors instanceof Map<?, ?> globalCorsMap)) return Map.of();
@@ -455,7 +441,7 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     static boolean parseGlobalCorsSimpleHandler(String content) {
         Object loaded = new Yaml().load(content);
         if (!(loaded instanceof Map<?, ?> root)) return false;
-        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        Object gateway = gatewayNode(root);
         if (!(gateway instanceof Map<?, ?> gatewayMap)) return false;
         Object globalCors = gatewayMap.get("globalcors");
         if (!(globalCors instanceof Map<?, ?> globalCorsMap)) return false;
@@ -732,6 +718,34 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     @FunctionalInterface
     private interface RouteMutator {
         void mutate(List<GatewayRoute> routes);
+    }
+
+    private static Object gatewayNode(Map<?, ?> root) {
+        Object gateway = child(child(root.get("spring"), "cloud"), "gateway");
+        Object webflux = child(child(gateway, "server"), "webflux");
+        return webflux instanceof Map<?, ?> ? webflux : gateway;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<Object, Object> mutableGatewayNode(Map<?, ?> root) {
+        Object gatewayValue = child(child(root.get("spring"), "cloud"), "gateway");
+        if (!(gatewayValue instanceof Map<?, ?> gateway)) {
+            throw new IllegalStateException("网关配置缺少 spring.cloud.gateway 节点");
+        }
+        Map<Object, Object> mutableGateway = (Map<Object, Object>) gateway;
+        Map<Object, Object> server = (Map<Object, Object>) mutableGateway.computeIfAbsent(
+                "server", key -> new LinkedHashMap<>());
+        Object existingWebflux = server.get("webflux");
+        if (existingWebflux instanceof Map<?, ?> webflux) {
+            return (Map<Object, Object>) webflux;
+        }
+        Map<Object, Object> webflux = new LinkedHashMap<>();
+        List<Object> legacyKeys = mutableGateway.keySet().stream()
+                .filter(key -> !"server".equals(key))
+                .toList();
+        legacyKeys.forEach(key -> webflux.put(key, mutableGateway.remove(key)));
+        server.put("webflux", webflux);
+        return webflux;
     }
 
     private static Object child(Object parent, String name) {

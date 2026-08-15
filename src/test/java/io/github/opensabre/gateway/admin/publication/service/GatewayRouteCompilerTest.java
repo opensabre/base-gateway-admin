@@ -7,7 +7,7 @@ import io.github.opensabre.gateway.admin.publication.model.GatewayApiPublication
 import io.github.opensabre.gateway.admin.publication.model.GatewayApplicationRoute;
 import io.github.opensabre.gateway.admin.publication.model.RiskLevel;
 import org.junit.jupiter.api.Test;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.opensabre.gateway.admin.route.model.GatewayRouteDefinition;
 
 import java.util.Map;

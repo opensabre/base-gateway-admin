@@ -35,7 +35,7 @@ class GatewayInstanceVerificationServiceTest {
         when(client.fetch(loaded)).thenReturn("release-7");
         when(client.fetch(pending)).thenReturn("release-6");
         when(client.fetch(unreachable)).thenThrow(new IllegalStateException("timeout"));
-        when(mapper.insert(any())).thenReturn(1);
+        when(mapper.insert(any(io.github.opensabre.gateway.admin.publication.model.GatewayInstanceRevision.class))).thenReturn(1);
         GatewayInstanceVerificationService service = new GatewayInstanceVerificationService(
                 catalog, client, mapper, "base-gateway");
 
@@ -59,7 +59,7 @@ class GatewayInstanceVerificationServiceTest {
         when(catalog.getService("base-gateway")).thenReturn(
                 new GatewayServiceSummary("base-gateway", 1, 1, List.of(gateway)));
         when(client.fetch(gateway)).thenReturn("release-6", "release-7");
-        when(mapper.insert(any())).thenReturn(1);
+        when(mapper.insert(any(io.github.opensabre.gateway.admin.publication.model.GatewayInstanceRevision.class))).thenReturn(1);
         GatewayInstanceVerificationService service = new GatewayInstanceVerificationService(
                 catalog, client, mapper, "base-gateway", 3, 0);
 
