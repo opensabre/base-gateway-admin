@@ -49,6 +49,8 @@ management:
 logging:
   level:
     io.github.opensabre.gateway.admin: debug
+  pattern:
+    level: '%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-},%X{parentSpanId:-}]'
 
 mybatis-plus:
   global-config:
