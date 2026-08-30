@@ -97,7 +97,7 @@ class GatewayRouteConfigServiceTest {
             assertThat(route.getPredicates()).singleElement().satisfies(predicate ->
                     assertThat(predicate.getArgs()).containsEntry("pattern", "/api/org/**"));
             assertThat(route.getFilters()).singleElement().satisfies(filter ->
-                    assertThat(filter.getArgs()).containsEntry("value", "2"));
+                    assertThat(filter.getArgs()).containsEntry("parts", "2"));
         });
     }
 

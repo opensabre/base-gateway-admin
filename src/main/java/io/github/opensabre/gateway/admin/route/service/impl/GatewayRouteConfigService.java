@@ -763,7 +763,9 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
                 int separator = text.indexOf('=');
                 routeDefinition.setName(separator < 0 ? text : text.substring(0, separator));
                 if (separator >= 0) {
-                    String key = predicate && "Path".equals(routeDefinition.getName()) ? "pattern" : "value";
+                    String key = predicate && "Path".equals(routeDefinition.getName())
+                            ? "pattern"
+                            : "StripPrefix".equals(routeDefinition.getName()) ? "parts" : "value";
                     routeDefinition.setArgs(Map.of(key, text.substring(separator + 1)));
                 }
             } else if (definition instanceof Map<?, ?> map) {
