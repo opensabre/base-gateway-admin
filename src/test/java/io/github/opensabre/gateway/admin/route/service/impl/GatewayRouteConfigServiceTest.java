@@ -191,6 +191,48 @@ class GatewayRouteConfigServiceTest {
     }
 
     @Test
+    void shouldOmitEmptyDefinitionArguments() {
+        String yaml = "spring:\n  cloud:\n    gateway:\n      default-filters: []\n";
+
+        String updated = GatewayRouteConfigService.replaceDefaultFilters(yaml,
+                List.of(definition("TokenRelay", Map.of())));
+
+        assertThat(updated).contains("name: TokenRelay").doesNotContain("args: {}");
+        assertThat(GatewayRouteConfigService.parseDefaultFilters(updated)).singleElement()
+                .satisfies(filter -> assertThat(filter.getArgs()).isEmpty());
+    }
+
+    @Test
+    void shouldNotRewriteUnchangedDefaultFiltersWhenPublishingCors() throws Exception {
+        String yaml = """
+                spring:
+                  cloud:
+                    gateway:
+                      default-filters:
+                        - TokenRelay
+                      routes: []
+                """;
+        NacosConfigManager manager = mock(NacosConfigManager.class);
+        ConfigService configService = mock(ConfigService.class);
+        when(manager.getConfigService()).thenReturn(configService);
+        when(configService.getConfig("base-gateway.yml", "DEFAULT_GROUP", 10_000L)).thenReturn(yaml);
+        when(configService.publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                anyString(), anyString(), eq("yaml"))).thenReturn(true);
+        GatewayRouteConfigService service = new GatewayRouteConfigService(manager, "base-gateway.yml", "DEFAULT_GROUP");
+
+        service.publishManaged(service.getCurrentConfig().getVersion(), "release-cors", List.of(), List.of(), Map.of(),
+                new io.github.opensabre.gateway.admin.policy.service.GlobalRuleCompilation(
+                        true, List.of(definition("TokenRelay", Map.of())), true,
+                        Map.of("/**", Map.of("allowedOrigins", List.of("http://opensabre:3010"))), true));
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(configService).publishConfigCas(eq("base-gateway.yml"), eq("DEFAULT_GROUP"),
+                content.capture(), anyString(), eq("yaml"));
+        assertThat(content.getValue()).contains("default-filters: [TokenRelay]")
+                .doesNotContain("name: TokenRelay", "args: {}");
+    }
+
+    @Test
     void shouldRejectInvalidDefaultRateLimit() {
         GatewayRouteDefinition tokenRelay = definition("TokenRelay", Map.of());
         GatewayRouteDefinition rateLimit = definition("RequestRateLimiter", Map.of(

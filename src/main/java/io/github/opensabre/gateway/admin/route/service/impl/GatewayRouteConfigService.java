@@ -189,8 +189,10 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         }
         String updated = replaceRoutes(content, merged);
         updated = replaceManagedCircuitBreakers(updated, circuitBreakerInstances);
-        if (globalRules.defaultFiltersChanged()) {
-            validateManagedDefaultFilters(globalRules.defaultFilters(), parseDefaultFilters(content));
+        List<GatewayRouteDefinition> currentDefaultFilters = parseDefaultFilters(content);
+        if (globalRules.defaultFiltersChanged()
+                && !sameDefinitions(currentDefaultFilters, globalRules.defaultFilters())) {
+            validateManagedDefaultFilters(globalRules.defaultFilters(), currentDefaultFilters);
             updated = replaceDefaultFilters(updated, globalRules.defaultFilters());
         }
         if (globalRules.corsChanged()) {
@@ -558,10 +560,27 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
         for (GatewayRouteDefinition definition : definitions) {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("name", definition.getName());
-            value.put("args", new LinkedHashMap<>(definition.getArgs()));
+            if (definition.getArgs() != null && !definition.getArgs().isEmpty()) {
+                value.put("args", new LinkedHashMap<>(definition.getArgs()));
+            }
             values.add(value);
         }
         return values;
+    }
+
+    /** 比较过滤器的运行时语义，避免发布无关全局策略时重写未变化的默认过滤器节点。 */
+    private static boolean sameDefinitions(List<GatewayRouteDefinition> left,
+            List<GatewayRouteDefinition> right) {
+        if (left == null || right == null || left.size() != right.size()) return false;
+        for (int index = 0; index < left.size(); index++) {
+            GatewayRouteDefinition first = left.get(index);
+            GatewayRouteDefinition second = right.get(index);
+            if (!java.util.Objects.equals(first.getName(), second.getName())
+                    || !java.util.Objects.equals(first.getArgs(), second.getArgs())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static void validateRoute(GatewayRoute route) {
