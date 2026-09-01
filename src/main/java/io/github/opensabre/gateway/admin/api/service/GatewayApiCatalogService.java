@@ -12,6 +12,8 @@ import io.github.opensabre.gateway.admin.api.model.ApiSyncResult;
 import io.github.opensabre.gateway.admin.api.model.GatewayApi;
 import io.github.opensabre.gateway.admin.api.model.GatewayApiPage;
 import io.github.opensabre.gateway.admin.integration.OpenApiReadClient;
+import io.github.opensabre.gateway.admin.integration.OrganizationProductClient;
+import io.github.opensabre.common.core.entity.vo.Result;
 import io.github.opensabre.gateway.admin.service.GatewayServiceCatalogService;
 import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
 import org.springframework.stereotype.Service;
@@ -43,13 +45,16 @@ public class GatewayApiCatalogService {
     private final GatewayApiMapper mapper;
     private final GatewayServiceCatalogService serviceCatalog;
     private final OpenApiReadClient openApiReadClient;
+    private final OrganizationProductClient organizationProductClient;
     private final ObjectMapper objectMapper;
 
     public GatewayApiCatalogService(GatewayApiMapper mapper, GatewayServiceCatalogService serviceCatalog,
-            OpenApiReadClient openApiReadClient, ObjectMapper objectMapper) {
+            OpenApiReadClient openApiReadClient, OrganizationProductClient organizationProductClient,
+            ObjectMapper objectMapper) {
         this.mapper = mapper;
         this.serviceCatalog = serviceCatalog;
         this.openApiReadClient = openApiReadClient;
+        this.organizationProductClient = organizationProductClient;
         this.objectMapper = objectMapper;
     }
 
@@ -84,6 +89,11 @@ public class GatewayApiCatalogService {
     }
 
     ApiSyncResult applySnapshot(String serviceId, List<DiscoveredApi> discovered) {
+        Result<String> productResponse = organizationProductClient.getProductCode(serviceId);
+        String productCode = productResponse == null ? null : productResponse.getData();
+        if (productCode == null || productCode.isBlank()) {
+            throw new IllegalStateException("无法确定服务所属产品：" + serviceId);
+        }
         List<GatewayApi> existing = mapper.selectList(new LambdaQueryWrapper<GatewayApi>()
                 .eq(GatewayApi::getServiceId, serviceId));
         Map<String, GatewayApi> byIdentity = new HashMap<>();
@@ -99,9 +109,10 @@ public class GatewayApiCatalogService {
             }
             GatewayApi current = byIdentity.get(identity);
             if (current == null) {
-                mapper.insert(toEntity(serviceId, item, now));
+                mapper.insert(toEntity(serviceId, productCode, item, now));
                 created++;
             } else if (current.getSourceType() == ApiSourceType.OPENAPI) {
+                current.setProductCode(productCode);
                 current.setOperationId(item.operationId());
                 current.setSummary(item.summary());
                 current.setTagsJson(writeTags(item.tags()));
@@ -156,9 +167,10 @@ public class GatewayApiCatalogService {
         }
     }
 
-    private GatewayApi toEntity(String serviceId, DiscoveredApi item, Date now) {
+    private GatewayApi toEntity(String serviceId, String productCode, DiscoveredApi item, Date now) {
         GatewayApi api = new GatewayApi();
         api.setServiceId(serviceId);
+        api.setProductCode(productCode);
         api.setOperationId(item.operationId());
         api.setHttpMethod(item.httpMethod());
         api.setUpstreamPath(item.path());

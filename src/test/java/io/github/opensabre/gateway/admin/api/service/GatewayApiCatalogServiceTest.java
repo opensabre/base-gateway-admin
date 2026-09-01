@@ -4,6 +4,8 @@ import tools.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.github.opensabre.gateway.admin.api.dao.GatewayApiMapper;
 import io.github.opensabre.gateway.admin.api.model.GatewayApi;
+import io.github.opensabre.gateway.admin.integration.OrganizationProductClient;
+import io.github.opensabre.common.core.entity.vo.Result;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +19,7 @@ import static org.mockito.Mockito.when;
 class GatewayApiCatalogServiceTest {
 
     private final GatewayApiCatalogService service = new GatewayApiCatalogService(
-            null, null, null, new ObjectMapper());
+            null, null, null, null, new ObjectMapper());
 
     @Test
     void parsesOnlyHttpOperationsWithStableIdentity() {
@@ -65,7 +67,7 @@ class GatewayApiCatalogServiceTest {
     void pagesApiAssetsAndCapsPageSize() {
         GatewayApiMapper mapper = mock(GatewayApiMapper.class);
         GatewayApiCatalogService catalog = new GatewayApiCatalogService(
-                mapper, null, null, new ObjectMapper());
+                mapper, null, null, null, new ObjectMapper());
         when(mapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
             Page<GatewayApi> requested = invocation.getArgument(0);
             return new Page<GatewayApi>(requested.getCurrent(), requested.getSize(), 42)
@@ -78,5 +80,23 @@ class GatewayApiCatalogServiceTest {
         assertThat(result.pageSize()).isEqualTo(200);
         assertThat(result.total()).isEqualTo(42);
         assertThat(result.apis()).hasSize(1);
+    }
+
+    @Test
+    void storesOwningProductWhenSynchronizingAnApplication() {
+        GatewayApiMapper mapper = mock(GatewayApiMapper.class);
+        OrganizationProductClient organization = mock(OrganizationProductClient.class);
+        when(organization.getProductCode("iqc-platform")).thenReturn(Result.success("iqc"));
+        when(mapper.selectList(any())).thenReturn(List.of());
+        GatewayApiCatalogService catalog = new GatewayApiCatalogService(
+                mapper, null, null, organization, new ObjectMapper());
+
+        catalog.applySnapshot("iqc-platform", List.of(
+                new GatewayApiCatalogService.DiscoveredApi("GET", "/api/iqc/tasks", "listTasks",
+                        "查询任务", List.of("tasks"), "hash")));
+
+        var asset = org.mockito.ArgumentCaptor.forClass(GatewayApi.class);
+        org.mockito.Mockito.verify(mapper).insert(asset.capture());
+        assertThat(asset.getValue().getProductCode()).isEqualTo("iqc");
     }
 }

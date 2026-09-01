@@ -5,6 +5,6 @@ import org.springframework.context.annotation.Configuration;
 
 /** 注册网关控制面专用的组织资源只读客户端。 */
 @Configuration(proxyBeanMethods = false)
-@EnableFeignClients(clients = OrganizationResourceClient.class)
+@EnableFeignClients(clients = {OrganizationResourceClient.class, OrganizationProductClient.class})
 public class GatewayOrganizationClientConfiguration {
 }
