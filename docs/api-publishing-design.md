@@ -59,6 +59,9 @@ service_id + http_method + upstream_path
 
 OpenAPI 的 `operationId` 作为可读标识，不能单独作为稳定主键。
 
+API 资产目录是跨产品的全局视图。同步时根据组织服务维护的“应用—产品”映射记录
+`product_code`，用于展示和筛选归属；产品归属的权威数据仍在组织服务，网关控制面不复制产品模型。
+
 ### 4.3 API 发布
 
 API 资产的外部暴露声明，包含外部 Path、目标 Path、鉴权模式、状态和策略覆盖。

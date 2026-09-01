@@ -14,6 +14,7 @@ import java.util.Date;
 public class GatewayApi extends BasePo {
 
     private String serviceId;
+    private String productCode;
     private String operationId;
     private String httpMethod;
     private String upstreamPath;

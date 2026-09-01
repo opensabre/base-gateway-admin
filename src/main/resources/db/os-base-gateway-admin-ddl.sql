@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_instance_revision (
 CREATE TABLE IF NOT EXISTS base_gateway_admin_api (
     id BIGINT NOT NULL PRIMARY KEY,
     service_id VARCHAR(100) NOT NULL,
+    product_code VARCHAR(64) NOT NULL DEFAULT 'COMMON',
     operation_id VARCHAR(200),
     http_method VARCHAR(16) NOT NULL,
     upstream_path VARCHAR(500) NOT NULL,
@@ -71,7 +72,8 @@ CREATE TABLE IF NOT EXISTS base_gateway_admin_api (
     updated_by VARCHAR(100) NOT NULL,
     updated_time DATETIME NOT NULL,
     UNIQUE KEY uk_gateway_api_identity (service_id, http_method, upstream_path),
-    INDEX idx_gateway_api_service_status (service_id, discovery_status)
+    INDEX idx_gateway_api_service_status (service_id, discovery_status),
+    INDEX idx_gateway_api_product (product_code)
 ) COMMENT='网关 API 资产';
 
 CREATE TABLE IF NOT EXISTS base_gateway_admin_api_publication (
