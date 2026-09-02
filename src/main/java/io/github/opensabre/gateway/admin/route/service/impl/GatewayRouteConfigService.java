@@ -527,7 +527,17 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
     private static String definitionArgument(List<GatewayRouteDefinition> definitions, String name, String key) {
         if (definitions == null) return "";
         return definitions.stream().filter(definition -> name.equals(definition.getName())).findFirst()
-                .map(definition -> definition.getArgs().getOrDefault(key, "")).orElse("");
+                .map(definition -> {
+                    Map<String, String> args = definition.getArgs();
+                    String direct = args.get(key);
+                    if (direct != null) return direct;
+                    if ("pattern".equals(key)) {
+                        String indexed = args.get("patterns.0");
+                        if (indexed != null) return indexed;
+                        return args.getOrDefault("patterns", "");
+                    }
+                    return "";
+                }).orElse("");
     }
 
     private static boolean isManagedRoute(String id) {
@@ -561,11 +571,42 @@ public class GatewayRouteConfigService implements IGatewayRouteConfigService {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("name", definition.getName());
             if (definition.getArgs() != null && !definition.getArgs().isEmpty()) {
-                value.put("args", new LinkedHashMap<>(definition.getArgs()));
+                value.put("args", normalizedDefinitionArgs(definition));
             }
             values.add(value);
         }
         return values;
+    }
+
+    /** Spring Cloud Gateway 5 requires indexed keys for list-valued expanded arguments. */
+    private static Map<String, String> normalizedDefinitionArgs(GatewayRouteDefinition definition) {
+        Map<String, String> args = new LinkedHashMap<>(definition.getArgs());
+        if (!"Path".equals(definition.getName())) return args;
+
+        List<String> patterns = new ArrayList<>();
+        String direct = args.remove("pattern");
+        if (direct != null) patterns.addAll(splitPatterns(direct));
+        String list = args.remove("patterns");
+        if (list != null) patterns.addAll(splitPatterns(list));
+        for (int index = 0; ; index++) {
+            String pattern = args.remove("patterns." + index);
+            if (pattern == null) break;
+            patterns.add(pattern);
+        }
+        if (patterns.isEmpty()) return args;
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (int index = 0; index < patterns.size(); index++) {
+            normalized.put("patterns." + index, patterns.get(index));
+        }
+        normalized.putAll(args);
+        return normalized;
+    }
+
+    private static List<String> splitPatterns(String value) {
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(pattern -> !pattern.isEmpty())
+                .toList();
     }
 
     /** 比较过滤器的运行时语义，避免发布无关全局策略时重写未变化的默认过滤器节点。 */
