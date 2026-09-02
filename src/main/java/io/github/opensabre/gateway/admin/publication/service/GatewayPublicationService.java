@@ -187,6 +187,10 @@ public class GatewayPublicationService {
                         String result = value.getArgs() == null ? null : value.getArgs().get(key);
                         if (result != null && !result.isBlank()) return result;
                     }
+                    if ("Path".equals(name) && value.getArgs() != null) {
+                        String indexed = value.getArgs().get("patterns.0");
+                        if (indexed != null && !indexed.isBlank()) return indexed;
+                    }
                     return value.getArgs() == null || value.getArgs().isEmpty()
                             ? null : value.getArgs().values().iterator().next();
                 }).orElse(null);

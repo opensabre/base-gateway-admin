@@ -134,6 +134,18 @@ class GatewayRouteConfigServiceTest {
     }
 
     @Test
+    void shouldSerializePathPatternsUsingIndexedExpandedArguments() {
+        String yaml = "spring:\n  cloud:\n    gateway:\n      routes: []\n";
+        GatewayRoute route = route("base-authorization-api", "lb://base-authorization",
+                "Path", "pattern", "/api/auth/**,/oauth2/v3/**");
+
+        String updated = GatewayRouteConfigService.replaceRoutes(yaml, List.of(route));
+
+        assertThat(updated).contains("patterns.0: /api/auth/**", "patterns.1: /oauth2/v3/**")
+                .doesNotContain("pattern: /api/auth/**,/oauth2/v3/**");
+    }
+
+    @Test
     void shouldParseBoot4GatewayRouteNode() {
         String yaml = """
                 spring:

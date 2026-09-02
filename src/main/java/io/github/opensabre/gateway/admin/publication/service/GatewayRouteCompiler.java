@@ -67,7 +67,7 @@ public class GatewayRouteCompiler {
         GatewayRoute route = baseRoute("api-" + api.getId(), "lb://" + api.getServiceId(), order);
         route.setMetadata(Map.of("opensabre-auth-mode", publication.getAuthMode().name()));
         route.setPredicates(List.of(definition("Method", "method", api.getHttpMethod()),
-                definition("Path", "pattern", publication.getExternalPath())));
+                definition("Path", "patterns.0", publication.getExternalPath())));
         List<GatewayRouteDefinition> configuredFilters = readDefinitions(publication.getFiltersJson());
         if (!configuredFilters.isEmpty()) {
             configuredFilters.forEach(this::validateDefinition);
@@ -96,7 +96,7 @@ public class GatewayRouteCompiler {
         if (declaration.getHttpMethod() != null && !declaration.getHttpMethod().isBlank()) {
             predicates.add(definition("Method", "method", declaration.getHttpMethod().toUpperCase(Locale.ROOT)));
         }
-        predicates.add(definition("Path", "pattern", declaration.getExternalPath()));
+        predicates.add(definition("Path", "patterns.0", declaration.getExternalPath()));
         route.setPredicates(predicates);
         if (declaration.getRewritePath() != null && !declaration.getRewritePath().isBlank()) {
             String[] parts = declaration.getRewritePath().split("=>", 2);
@@ -144,7 +144,7 @@ public class GatewayRouteCompiler {
         List<GatewayRouteDefinition> configuredPredicates = readDefinitions(route.getPredicatesJson());
         String path = configuredPredicates.stream()
                 .filter(definition -> "Path".equals(definition.getName()))
-                .map(definition -> definition.getArgs().getOrDefault("pattern", definition.getArgs().get("value")))
+                .map(GatewayRouteCompiler::pathArgument)
                 .filter(value -> value != null && !value.isBlank())
                 .findFirst()
                 .orElse(route.getExternalPath());
@@ -206,6 +206,12 @@ public class GatewayRouteCompiler {
         definition.setName(name);
         definition.setArgs(args);
         return definition;
+    }
+
+    private static String pathArgument(GatewayRouteDefinition definition) {
+        Map<String, String> args = definition.getArgs();
+        return args.getOrDefault("patterns.0", args.getOrDefault("pattern",
+                args.getOrDefault("patterns", args.get("value"))));
     }
 
     /** 绑定一个 API 资产和它的发布声明，避免编译阶段重新推断关系。 */
