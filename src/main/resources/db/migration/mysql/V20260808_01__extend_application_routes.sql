@@ -1,4 +1,3 @@
-USE os_base_gateway_admin;
 SET NAMES utf8mb4;
 
 ALTER TABLE base_gateway_admin_application_route
