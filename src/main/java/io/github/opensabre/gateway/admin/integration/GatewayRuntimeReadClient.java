@@ -29,11 +29,7 @@ public class GatewayRuntimeReadClient {
     }
 
     public GatewayRuntimeSnapshot fetch(GatewayServiceInstance instance) {
-        String scheme = instance.metadata().getOrDefault("runtime.scheme", "http");
-        String path = instance.metadata().getOrDefault("runtime.path", "/actuator/gatewayruntime");
-        if (!path.startsWith("/")) throw new IllegalArgumentException("运行参数路径必须以 / 开头");
-        HttpRequest request = HttpRequest.newBuilder(
-                URI.create(scheme + "://" + instance.ip() + ":" + instance.port() + path))
+        HttpRequest request = HttpRequest.newBuilder(runtimeUri(instance))
                 .timeout(Duration.ofSeconds(5)).GET().build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -44,8 +40,24 @@ public class GatewayRuntimeReadClient {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("实例运行参数查询被中断", exception);
+        } catch (IllegalStateException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new IllegalStateException("无法读取网关实例运行参数", exception);
         }
+    }
+
+    URI runtimeUri(GatewayServiceInstance instance) {
+        String scheme = instance.metadata().getOrDefault("management.scheme",
+                instance.metadata().getOrDefault("runtime.scheme", "http"));
+        String host = instance.metadata().getOrDefault("management.host", instance.ip());
+        String port = instance.metadata().getOrDefault("management.port", Integer.toString(instance.port()));
+        String path = instance.metadata().get("runtime.path");
+        if (path == null || path.isBlank()) {
+            String managementPath = instance.metadata().getOrDefault("management.path", "/actuator");
+            path = managementPath.replaceAll("/$", "") + "/gatewayruntime";
+        }
+        if (!path.startsWith("/")) throw new IllegalArgumentException("运行参数路径必须以 / 开头");
+        return URI.create(scheme + "://" + host + ":" + port + path);
     }
 }
