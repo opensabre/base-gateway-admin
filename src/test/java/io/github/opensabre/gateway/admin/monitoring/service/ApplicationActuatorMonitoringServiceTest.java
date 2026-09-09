@@ -25,8 +25,10 @@ class ApplicationActuatorMonitoringServiceTest {
         var unavailable = instance("10.0.0.2", false);
         when(catalog.listServices(1, 20)).thenReturn(new GatewayServicePage(1, 1, 20,
                 List.of(new GatewayServiceSummary("base-sysadmin", 2, 1, List.of(healthy, unavailable)))));
-        when(client.fetch(healthy)).thenReturn(new ApplicationActuatorSnapshot(0.25, 100, 200, 60, 12));
-        when(client.fetch(unavailable)).thenThrow(new IllegalStateException("HTTP 401"));
+        when(client.fetch("base-sysadmin", healthy))
+                .thenReturn(new ApplicationActuatorSnapshot(0.25, 100, 200, 60, 12));
+        when(client.fetch("base-sysadmin", unavailable))
+                .thenThrow(new IllegalStateException("HTTP 401"));
 
         var result = new ApplicationActuatorMonitoringService(catalog, client).snapshots(1, 20);
 

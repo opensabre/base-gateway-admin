@@ -46,6 +46,10 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 
 ## 运行监控
 
+应用实例的 Actuator 基础指标通过 OpenSabre 内部 Token 获取。管理端按服务发现名称签发
+短期、限定 audience 且仅含 `ACTUATOR_METRICS_READ` 权限的 Token；各应用不会匿名放行
+这些指标，也无需维护独立的 Actuator 用户名和密码。
+
 `GET /monitoring/routes` 只执行服务端定义的 PromQL，返回按 Route ID 聚合的最近 5 分钟
 请求率、5xx 错误率和 P95 延迟原始快照。接口不接受客户端 PromQL，避免把控制面变成任意
 Prometheus 查询代理。

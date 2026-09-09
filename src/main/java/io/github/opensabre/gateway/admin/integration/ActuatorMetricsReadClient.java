@@ -1,5 +1,7 @@
 package io.github.opensabre.gateway.admin.integration;
 
+import io.github.opensabre.security.actuator.ActuatorMonitoringTokenIssuer;
+import io.github.opensabre.security.token.InternalTokenConstants;
 import io.github.opensabre.gateway.admin.monitoring.model.ApplicationActuatorSnapshot;
 import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,29 +22,44 @@ import java.time.Duration;
 public class ActuatorMetricsReadClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final ActuatorMonitoringTokenIssuer tokenIssuer;
 
     @Autowired
-    public ActuatorMetricsReadClient(ObjectMapper objectMapper) {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(), objectMapper);
+    public ActuatorMetricsReadClient(
+            ObjectMapper objectMapper,
+            ActuatorMonitoringTokenIssuer tokenIssuer) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(),
+                objectMapper, tokenIssuer);
     }
 
-    ActuatorMetricsReadClient(HttpClient httpClient, ObjectMapper objectMapper) {
+    ActuatorMetricsReadClient(
+            HttpClient httpClient,
+            ObjectMapper objectMapper,
+            ActuatorMonitoringTokenIssuer tokenIssuer) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
+        this.tokenIssuer = tokenIssuer;
     }
 
     /** Read only the process and JVM values displayed by the service catalog. */
-    public ApplicationActuatorSnapshot fetch(GatewayServiceInstance instance) {
-        double cpu = metric(instance, "process.cpu.usage", null);
-        long heapUsed = Math.round(metric(instance, "jvm.memory.used", "area:heap"));
-        long heapMax = Math.round(metric(instance, "jvm.memory.max", "area:heap"));
-        long uptime = Math.round(metric(instance, "process.uptime", null));
-        int liveThreads = (int) Math.round(metric(instance, "jvm.threads.live", null));
+    public ApplicationActuatorSnapshot fetch(
+            String applicationName, GatewayServiceInstance instance) {
+        String token = tokenIssuer.issue(applicationName);
+        double cpu = metric(instance, "process.cpu.usage", null, token);
+        long heapUsed = Math.round(metric(instance, "jvm.memory.used", "area:heap", token));
+        long heapMax = Math.round(metric(instance, "jvm.memory.max", "area:heap", token));
+        long uptime = Math.round(metric(instance, "process.uptime", null, token));
+        int liveThreads = (int) Math.round(metric(instance, "jvm.threads.live", null, token));
         return new ApplicationActuatorSnapshot(cpu, heapUsed, heapMax, uptime, liveThreads);
     }
 
-    private double metric(GatewayServiceInstance instance, String metricName, String tag) {
+    private double metric(
+            GatewayServiceInstance instance,
+            String metricName,
+            String tag,
+            String token) {
         HttpRequest request = HttpRequest.newBuilder(metricUri(instance, metricName, tag))
+                .header(InternalTokenConstants.HEADER, token)
                 .timeout(Duration.ofSeconds(3)).GET().build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

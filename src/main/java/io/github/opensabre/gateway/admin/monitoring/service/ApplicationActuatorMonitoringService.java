@@ -29,7 +29,7 @@ public class ApplicationActuatorMonitoringService {
                 String id = instance.ip() + ":" + instance.port();
                 try {
                     result.add(new ApplicationInstanceActuator(service.name(), id, instance.healthy(),
-                            actuatorClient.fetch(instance), null));
+                            actuatorClient.fetch(service.name(), instance), null));
                 } catch (IllegalStateException | IllegalArgumentException unavailable) {
                     result.add(new ApplicationInstanceActuator(service.name(), id, instance.healthy(), null,
                             unavailable.getMessage()));
