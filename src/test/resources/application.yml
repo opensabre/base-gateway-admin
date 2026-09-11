@@ -19,6 +19,9 @@ opensabre:
   gateway-admin:
     nacos:
       server-url: http://localhost:8848
+  monitoring:
+    collector:
+      enabled: true
     prometheus:
       server-url: http://localhost:9090
 
