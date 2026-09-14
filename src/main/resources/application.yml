@@ -37,6 +37,9 @@ opensabre:
       server-url: ${NACOS_SERVER_URL:http://${REGISTER_HOST:localhost}:${REGISTER_PORT:8848}}
       group: ${GATEWAY_CONFIG_GROUP:DEFAULT_GROUP}
       gateway-data-id: ${GATEWAY_CONFIG_DATA_ID:base-gateway.yml}
+  monitoring:
+    collector:
+      enabled: true
     prometheus:
       server-url: ${PROMETHEUS_URL:http://localhost:9090}
   rest:

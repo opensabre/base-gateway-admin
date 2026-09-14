@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.monitoring.rest;
 
-import io.github.opensabre.gateway.admin.integration.PrometheusReadClient;
+import io.github.opensabre.monitoring.PrometheusReadClient;
 import io.github.opensabre.gateway.admin.monitoring.service.GatewayRuntimeMonitoringService;
 import io.github.opensabre.gateway.admin.monitoring.service.ApplicationActuatorMonitoringService;
 import org.junit.jupiter.api.Test;

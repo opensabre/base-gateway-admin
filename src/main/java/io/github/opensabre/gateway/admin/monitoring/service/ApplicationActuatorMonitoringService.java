@@ -1,9 +1,9 @@
 package io.github.opensabre.gateway.admin.monitoring.service;
 
-import io.github.opensabre.gateway.admin.integration.ActuatorMetricsReadClient;
-import io.github.opensabre.gateway.admin.monitoring.model.ApplicationInstanceActuator;
+import io.github.opensabre.monitoring.ApplicationMonitoringService;
+import io.github.opensabre.monitoring.model.ApplicationInstanceMonitoring;
+import io.github.opensabre.monitoring.model.MonitoringInstance;
 import io.github.opensabre.gateway.admin.service.GatewayServiceCatalogService;
-import io.github.opensabre.gateway.admin.service.model.GatewayServiceInstance;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -13,28 +13,23 @@ import java.util.List;
 @Service
 public class ApplicationActuatorMonitoringService {
     private final GatewayServiceCatalogService catalogService;
-    private final ActuatorMetricsReadClient actuatorClient;
+    private final ApplicationMonitoringService monitoringService;
 
     public ApplicationActuatorMonitoringService(GatewayServiceCatalogService catalogService,
-            ActuatorMetricsReadClient actuatorClient) {
+            ApplicationMonitoringService monitoringService) {
         this.catalogService = catalogService;
-        this.actuatorClient = actuatorClient;
+        this.monitoringService = monitoringService;
     }
 
     /** Read each node independently so one unavailable application remains visible as an error row. */
-    public List<ApplicationInstanceActuator> snapshots(int page, int pageSize) {
-        List<ApplicationInstanceActuator> result = new ArrayList<>();
+    public List<ApplicationInstanceMonitoring> snapshots(int page, int pageSize) {
+        List<ApplicationInstanceMonitoring> result = new ArrayList<>();
         for (var service : catalogService.listServices(page, pageSize).services()) {
-            for (GatewayServiceInstance instance : service.instances()) {
-                String id = instance.ip() + ":" + instance.port();
-                try {
-                    result.add(new ApplicationInstanceActuator(service.name(), id, instance.healthy(),
-                            actuatorClient.fetch(instance), null));
-                } catch (IllegalStateException | IllegalArgumentException unavailable) {
-                    result.add(new ApplicationInstanceActuator(service.name(), id, instance.healthy(), null,
-                            unavailable.getMessage()));
-                }
-            }
+            List<MonitoringInstance> instances = service.instances().stream()
+                    .map(instance -> new MonitoringInstance(instance.ip(), instance.port(),
+                            instance.healthy(), instance.metadata()))
+                    .toList();
+            result.addAll(monitoringService.snapshots(service.name(), instances));
         }
         return List.copyOf(result);
     }
