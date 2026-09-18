@@ -1,6 +1,6 @@
 package io.github.opensabre.gateway.admin.monitoring.rest;
 
-import io.github.opensabre.monitoring.PrometheusReadClient;
+import io.github.opensabre.gateway.admin.monitoring.service.MonitoringQueryService;
 import io.github.opensabre.gateway.admin.monitoring.service.GatewayRuntimeMonitoringService;
 import io.github.opensabre.gateway.admin.monitoring.service.ApplicationActuatorMonitoringService;
 import org.junit.jupiter.api.Test;
@@ -15,7 +15,7 @@ class GatewayMonitoringControllerTest {
 
     @Test
     void executesOnlyServerDefinedRouteQueries() {
-        PrometheusReadClient prometheus = mock(PrometheusReadClient.class);
+        MonitoringQueryService prometheus = mock(MonitoringQueryService.class);
         when(prometheus.query(contains("spring_cloud_gateway_requests_seconds"))).thenReturn("{}");
 
         var snapshot = new GatewayMonitoringController(prometheus,
@@ -32,7 +32,7 @@ class GatewayMonitoringControllerTest {
 
     @Test
     void returnsEmptyVectorsWhenPrometheusIsUnavailable() {
-        PrometheusReadClient prometheus = mock(PrometheusReadClient.class);
+        MonitoringQueryService prometheus = mock(MonitoringQueryService.class);
         when(prometheus.query(contains("spring_cloud_gateway_requests_seconds")))
                 .thenThrow(new IllegalStateException("unavailable"));
 
@@ -47,7 +47,7 @@ class GatewayMonitoringControllerTest {
 
     @Test
     void executesOnlyServerDefinedApplicationQueries() {
-        PrometheusReadClient prometheus = mock(PrometheusReadClient.class);
+        MonitoringQueryService prometheus = mock(MonitoringQueryService.class);
         when(prometheus.query(org.mockito.ArgumentMatchers.anyString())).thenReturn("{}");
 
         var snapshot = new GatewayMonitoringController(prometheus,
@@ -71,7 +71,7 @@ class GatewayMonitoringControllerTest {
     @Test
     void delegatesActuatorPageWithoutUsingPrometheus() {
         var actuator = mock(ApplicationActuatorMonitoringService.class);
-        var controller = new GatewayMonitoringController(mock(PrometheusReadClient.class),
+        var controller = new GatewayMonitoringController(mock(MonitoringQueryService.class),
                 mock(GatewayRuntimeMonitoringService.class), actuator);
 
         controller.actuator(2, 10);

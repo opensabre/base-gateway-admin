@@ -53,3 +53,14 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 `GET /monitoring/routes` 只执行服务端定义的 PromQL，返回按 Route ID 聚合的最近 5 分钟
 请求率、5xx 错误率和 P95 延迟原始快照。接口不接受客户端 PromQL，避免把控制面变成任意
 Prometheus 查询代理。
+
+Prometheus 查询属于本控制面，不属于应用侧 Framework。`PROMETHEUS_URL` 默认指向
+`http://localhost:9090`，容器部署应配置为 `http://prometheus:9090`。
+
+- `GET /monitoring/status` 返回 Prometheus 可用状态和各采集目标的 `up` 向量。
+- `GET /monitoring/routes/history?range=1h` 返回路由 TPS、5xx TPS、P50/P95/P99 时序。
+- `GET /monitoring/applications/history?range=1h&application=base-sysadmin` 返回应用 TPS、延迟、CPU
+  和堆内存时序。
+
+时间范围只接受 `15m`、`1h`、`6h`、`24h`、`7d`、`30d`，查询步长由服务端确定；路由、
+应用和实例参数只作为经过校验的标签值使用，客户端不能提交任意 PromQL。
