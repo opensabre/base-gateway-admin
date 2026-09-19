@@ -6,7 +6,7 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 
 ## 本地启动
 
-1. 执行 `src/main/resources/db/os-base-gateway-admin-ddl.sql`。
+1. 由 `base-k8s` 创建数据库和迁移账号，运行本服务独立 Flyway 迁移（`src/main/resources/db/migration/mysql/`）。
 2. 配置 MySQL、Nacos 和 Prometheus 环境变量。
 3. 运行 `mvn spring-boot:run`。
 
@@ -42,7 +42,7 @@ OpenSabre 独立网关控制面。原 `base-sysadmin` 的路由、默认过滤�
 
 未保存全局过滤器策略时，管理端从当前 Nacos 配置导入编辑，不会因打开页面丢失现有项。
 安全响应头通过 Filter 快捷模板生成，仍可逐项修改和删除。
-数据库升级需执行 `db/migrations/V20260809_01__expand_gateway_policy_config.sql`。
+数据库升级由独立 Flyway 进程执行 `db/migration/mysql/` 中尚未应用的版本迁移。
 
 ## 运行监控
 
