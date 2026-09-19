@@ -17,19 +17,24 @@ import java.time.Duration;
 public class GatewayRuntimeReadClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final ActuatorAccessTokenProvider tokenProvider;
 
     @Autowired
-    public GatewayRuntimeReadClient(ObjectMapper objectMapper) {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(), objectMapper);
+    public GatewayRuntimeReadClient(ObjectMapper objectMapper, ActuatorAccessTokenProvider tokenProvider) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build(), objectMapper,
+                tokenProvider);
     }
 
-    GatewayRuntimeReadClient(HttpClient httpClient, ObjectMapper objectMapper) {
+    GatewayRuntimeReadClient(HttpClient httpClient, ObjectMapper objectMapper,
+            ActuatorAccessTokenProvider tokenProvider) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
+        this.tokenProvider = tokenProvider;
     }
 
     public GatewayRuntimeSnapshot fetch(GatewayServiceInstance instance) {
         HttpRequest request = HttpRequest.newBuilder(runtimeUri(instance))
+                .header("Authorization", "Bearer " + tokenProvider.token())
                 .timeout(Duration.ofSeconds(5)).GET().build();
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

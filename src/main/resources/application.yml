@@ -6,6 +6,23 @@ spring:
     enabled: false
   application:
     name: base-gateway-admin
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_JWK_SET_URI:http://localhost:8000/oauth2/jwks}
+      client:
+        registration:
+          actuator-read:
+            provider: opensabre
+            client-id: ${ACTUATOR_OAUTH_CLIENT_ID:actuator-monitoring-unconfigured}
+            client-secret: ${ACTUATOR_OAUTH_CLIENT_SECRET:actuator-monitoring-unconfigured}
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: client_credentials
+            scope: actuator.read
+        provider:
+          opensabre:
+            token-uri: ${AUTH_TOKEN_URI:http://base-authorization:8000/oauth2/token}
   cloud:
     nacos:
       discovery:
