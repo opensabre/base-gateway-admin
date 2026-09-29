@@ -5,7 +5,9 @@ import java.time.Duration;
 /** Bounded query ranges keep chart responses predictable and protect Prometheus. */
 public enum MonitoringRange {
     FIFTEEN_MINUTES("15m", Duration.ofMinutes(15), Duration.ofSeconds(15)),
+    THIRTY_MINUTES("30m", Duration.ofMinutes(30), Duration.ofSeconds(15)),
     ONE_HOUR("1h", Duration.ofHours(1), Duration.ofSeconds(30)),
+    TWO_HOURS("2h", Duration.ofHours(2), Duration.ofMinutes(1)),
     SIX_HOURS("6h", Duration.ofHours(6), Duration.ofMinutes(2)),
     ONE_DAY("24h", Duration.ofDays(1), Duration.ofMinutes(5)),
     SEVEN_DAYS("7d", Duration.ofDays(7), Duration.ofMinutes(30)),

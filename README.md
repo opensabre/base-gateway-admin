@@ -65,5 +65,5 @@ Prometheus 查询属于本控制面，不属于应用侧 Framework。`PROMETHEUS
 - `GET /monitoring/applications/history?range=1h&application=base-sysadmin` 返回应用 TPS、延迟、CPU
   和堆内存时序。
 
-时间范围只接受 `15m`、`1h`、`6h`、`24h`、`7d`、`30d`，查询步长由服务端确定；路由、
+时间范围只接受 `15m`、`30m`、`1h`、`2h`、`6h`、`24h`、`7d`、`30d`，查询步长由服务端确定；路由、
 应用和实例参数只作为经过校验的标签值使用，客户端不能提交任意 PromQL。
